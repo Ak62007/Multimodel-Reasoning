@@ -1,0 +1,10 @@
+data/
+.venv/
+*.pyc
+__pycache__/
+.ipynb_checkpoints/
+models/*.h5
+models/*.pkl
+*.mp4
+*.avi
+*.wav
