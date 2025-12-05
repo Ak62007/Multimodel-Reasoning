@@ -5,6 +5,7 @@ __pycache__/
 .ipynb_checkpoints/
 models/*.h5
 models/*.pkl
+models/*.task
 *.mp4
 *.avi
 *.wav

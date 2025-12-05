@@ -1,73 +1,120 @@
-import cv2 as cv
-import deepface as df
+import os
+import math
+import pandas as pd
 import mediapipe as mp
+from pathlib import Path
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
 
-mp_face_mesh = mp.solutions.face_mesh
-face_mesh = mp_face_mesh.FaceMesh(
-    static_image_mode=True,
-    max_num_faces=1,
-    refine_landmarks=True,
-    min_detection_confidence=0.5
-)
+def get_coordinates(landmarks: list, idx: int) -> tuple:
+    return (landmarks[idx].x, landmarks[idx].y)
 
-def get_face_data(image_path, pad: float):
+def euclidean_distance(coord1: tuple, coord2: tuple) -> float:
+    return math.sqrt((coord1[0] - coord2[0])**2 + (coord1[1] - coord2[1])**2)
+
+
+def calculate_gaze_ratios(landmarks: list) -> tuple:
     """
-    Input: Path to image
+    Inputs:
+        landmarks: resultant landmarks coordinates of all the important points on the face.
     Output:
-        - face_crop: The cropped numpy array (ready for DeepFace)
-        - landmarks: The raw mesh points (ready for Gaze Math)
+        returns: (horizontal gaze ratio, vertical gaze ratio)
     """
+    # important indexes in the landmark result.
+    # RIGHT EYE (User's Right)
+    R_IRIS_CENTER = 468
+    R_INNER_CORNER = 133  # Toward nose
+    R_OUTER_CORNER = 33   # Toward ear
+    R_TOP_LID = 159
+    R_BOTTOM_LID = 145
+
+    # LEFT EYE (User's Left)
+    L_IRIS_CENTER = 473
+    L_INNER_CORNER = 362  # Toward nose
+    L_OUTER_CORNER = 263  # Toward ear
+    L_TOP_LID = 386
+    L_BOTTOM_LID = 374
     
-    img = cv.imread(image_path)
-    # check
-    if img is None:
-        print(f"Error: Could not load {image_path}")
-        return None, None
+    # Calculating Horizontal Gaze ratio
+    # For right eye
+    # getting important coordinates
+    r_iris_center_coor = get_coordinates(landmarks=landmarks, idx=R_IRIS_CENTER)
+    r_inner_corner_coor = get_coordinates(landmarks=landmarks, idx=R_INNER_CORNER)
+    r_outer_corner_coor = get_coordinates(landmarks=landmarks, idx=R_OUTER_CORNER)
     
-    h, w, _ = img.shape
+    # getting the distances
+    r_inner_d = euclidean_distance(coord1=r_iris_center_coor, coord2=r_inner_corner_coor)
+    r_outer_inner_d = euclidean_distance(coord1=r_inner_corner_coor, coord2=r_outer_corner_coor)
     
-    # convert to rgb and process it
-    img_rgb = cv.cvtColor(img, cv.COLOR_BGR2RGB)
-    # ready to be passed to get the face_mesh
-    results = face_mesh.process(img_rgb)
+    # right eye ratio
+    rh_ratio = r_inner_d/r_outer_inner_d
     
-    # check
-    if not results.multi_face_landmarks:
-        return None, None
+    # for left eye
+    # getting important coordinates
+    l_iris_center_coor = get_coordinates(landmarks=landmarks, idx=L_IRIS_CENTER)
+    l_inner_corner_coor = get_coordinates(landmarks=landmarks, idx=L_INNER_CORNER)
+    l_outer_corner_coor = get_coordinates(landmarks=landmarks, idx=L_OUTER_CORNER)
     
-    # Assuming one face
-    landmarks = results.multi_face_landmarks[0].landmark
+    # getting the distances
+    l_outer_d = euclidean_distance(coord1=l_iris_center_coor, coord2=l_outer_corner_coor)
+    l_outer_inner_d = euclidean_distance(coord1=l_inner_corner_coor, coord2=l_outer_corner_coor)
     
-    # part-A calculating the bounding box from mesh
+    # left eye ratio
+    lh_ratio = l_outer_d/l_outer_inner_d
     
-    # extract all x and y coordinates 
-    x_coords = [p.x for p in landmarks]
-    y_coords = [p.y for p in landmarks]
+    # horizontal gaze ratio
+    h_ratio = (rh_ratio + lh_ratio)/2
     
-    x_min = int(min(x_coords) * w)
-    x_max = int(max(x_coords) * w)
-    y_min = int(min(y_coords) * h)
-    y_max = int(max(y_coords) * h)
+    # Calculating Vertical Gaze ratio
+    # for right eye
+    ry_center = (r_inner_corner_coor[1] + r_outer_corner_coor[1])/2
+    r_offset = r_iris_center_coor[1] - ry_center
+    rv_ratio = r_offset/r_outer_inner_d
     
-    # print("x_coords: ", x_coords)
-    # print("y_coords: ", y_coords)
+    # for left eye
+    ly_center = (l_inner_corner_coor[1] + l_outer_corner_coor[1])/2
+    l_offset = l_iris_center_coor[1] - ly_center
+    lv_ratio = l_offset/l_outer_inner_d
     
-    # Applying the padding
-    face_w = x_max - x_min
-    face_h = y_max - y_min
+    # vertical gaze ratio
+    v_ratio = (rv_ratio + lv_ratio)/2
     
-    # 20% padding
-    pad_x = int(face_w * pad)
-    pad_y = int(face_h * pad)
+    return (h_ratio, v_ratio)
+
+# def face_analysis_data(model_path, images_path):
+#     """
+#     Inputs:
+#         model_path - mediapipe model weights file path
+#         images_path - path of the files where we saved the frame by frame images of the video.
     
-    # applying padding with boundary checks
-    crop_x1 = max(0, x_min - pad_x)
-    crop_y1 = max(0, y_min - pad_y)
-    crop_x2 = min(w, x_max + pad_x)
-    crop_y2 = min(h, y_max + pad_y)
+#     Output:
+#         fa_data - Time-Series data about the face emotions changing frame by frame in the video.
+#     """
+#     # Initializing the DataFrame
+#     fa_data = 
     
-    # crop and return
-    face_crop = img[crop_y1:crop_y2, crop_x1:crop_x2]
+#     folder = Path(images_path)
     
-    return face_crop, landmarks
+#     if not folder.exists():
+#         print(f"Folder {images_path} does not exist")
+#         return
     
+#     # This just let's mediapipe know where is the .task(model) weights of the model
+#     base_options = python.BaseOptions(model_asset_path=model_path)
+    
+#     # Start the Face detector engine
+#     options = vision.FaceLandmarkerOptions(
+#         base_options=base_options,
+#         output_face_blendshapes=True,
+#         # output_face_landmarks=True,
+#         num_faces=1,
+#         min_face_detection_confidence=0.5,
+#         running_mode=vision.RunningMode.IMAGE
+#     )
+    
+#     # initialize the detector
+#     detector = vision.FaceLandmarker.create_from_options(options)
+    
+#     # iterating from the image paths
+#     for filepath in folder.iterdir():
+        
