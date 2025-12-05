@@ -25,15 +25,15 @@ def calculate_gaze_ratios(landmarks: list) -> tuple:
     R_IRIS_CENTER = 468
     R_INNER_CORNER = 133  # Toward nose
     R_OUTER_CORNER = 33   # Toward ear
-    R_TOP_LID = 159
-    R_BOTTOM_LID = 145
+    # R_TOP_LID = 159
+    # R_BOTTOM_LID = 145
 
     # LEFT EYE (User's Left)
     L_IRIS_CENTER = 473
     L_INNER_CORNER = 362  # Toward nose
     L_OUTER_CORNER = 263  # Toward ear
-    L_TOP_LID = 386
-    L_BOTTOM_LID = 374
+    # L_TOP_LID = 386
+    # L_BOTTOM_LID = 374
     
     # Calculating Horizontal Gaze ratio
     # For right eye
@@ -81,40 +81,62 @@ def calculate_gaze_ratios(landmarks: list) -> tuple:
     
     return (h_ratio, v_ratio)
 
-# def face_analysis_data(model_path, images_path):
-#     """
-#     Inputs:
-#         model_path - mediapipe model weights file path
-#         images_path - path of the files where we saved the frame by frame images of the video.
+def face_analysis_data(model_path, images_path) -> pd.DataFrame:
+    """
+    Inputs:
+        model_path - mediapipe model weights file path
+        images_path - path of the files where we saved the frame by frame images of the video.
     
-#     Output:
-#         fa_data - Time-Series data about the face emotions changing frame by frame in the video.
-#     """
-#     # Initializing the DataFrame
-#     fa_data = 
+    Output:
+        fa_data - Time-Series data about the face emotions changing frame by frame in the video.
+    """
+    # Initializing the DataFrame
+    fa_data = []
     
-#     folder = Path(images_path)
+    folder = Path(images_path)
     
-#     if not folder.exists():
-#         print(f"Folder {images_path} does not exist")
-#         return
+    if not folder.exists():
+        print(f"Folder {images_path} does not exist")
+        return
     
-#     # This just let's mediapipe know where is the .task(model) weights of the model
-#     base_options = python.BaseOptions(model_asset_path=model_path)
+    # This just let's mediapipe know where is the .task(model) weights of the model
+    base_options = python.BaseOptions(model_asset_path=model_path)
     
-#     # Start the Face detector engine
-#     options = vision.FaceLandmarkerOptions(
-#         base_options=base_options,
-#         output_face_blendshapes=True,
-#         # output_face_landmarks=True,
-#         num_faces=1,
-#         min_face_detection_confidence=0.5,
-#         running_mode=vision.RunningMode.IMAGE
-#     )
+    # Start the Face detector engine
+    options = vision.FaceLandmarkerOptions(
+        base_options=base_options,
+        output_face_blendshapes=True,
+        # output_face_landmarks=True,
+        num_faces=1,
+        min_face_detection_confidence=0.5,
+        running_mode=vision.RunningMode.IMAGE
+    )
     
-#     # initialize the detector
-#     detector = vision.FaceLandmarker.create_from_options(options)
+    # initialize the detector
+    detector = vision.FaceLandmarker.create_from_options(options)
     
-#     # iterating from the image paths
-#     for filepath in folder.iterdir():
+    # iterating from the image paths
+    for filepath in folder.iterdir():
+        timing = float(filepath.stem.split("_ts_")[1])
+        image = mp.Image.create_from_file(filepath.as_posix())
+        results = detector.detect(image)
+        landmarks = results.face_landmarks[0]
+        h_gaze_ratio, v_gaze_ratio = calculate_gaze_ratios(landmarks=landmarks)
+        blend_shapes = results.face_blendshapes[0]
         
+        # filling the dataframe
+        row = {
+            'Time': timing,
+            'h_ratio': h_gaze_ratio,
+            'v_ratio': v_gaze_ratio
+        }
+        for feature in blend_shapes:
+            row[feature.category_name] = feature.score
+            
+        fa_data.append(row)
+
+    # Let's build the dataframe
+    fa_data = pd.DataFrame(fa_data)
+    fa_data = fa_data.sort_values('Time').reset_index(drop=True)
+    
+    return fa_data
