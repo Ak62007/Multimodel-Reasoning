@@ -12,11 +12,13 @@ dependencies = [
     "mediapipe>=0.10.21",
     "moviepy>=2.2.1",
     "numpy>=1.26.4",
+    "openai-whisper>=20250625",
     "opencv-python>=4.11.0.86",
     "pandas>=2.3.3",
     "py-feat>=0.6.1",
     "scipy<1.12",
     "soundfile>=0.13.1",
     "tf-keras>=2.18.0",
+    "whisper-timestamped>=1.15.9",
     "yt-dlp>=2025.11.12",
 ]
