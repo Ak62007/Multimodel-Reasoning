@@ -9,3 +9,4 @@ models/*.task
 *.mp4
 *.avi
 *.wav
+.env
