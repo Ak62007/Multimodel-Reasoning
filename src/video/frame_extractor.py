@@ -7,6 +7,7 @@ def extract_frames(video_path: str, output_path: str, nof_ps: int = 1):
     input:
         video_path - path to the video.
         output_path - path where to save the frames.
+        nof_ps - no of frames you want per sec to be saved(default = 1)
     
     output:
         - returns a list of frame paths and there timings when they appear

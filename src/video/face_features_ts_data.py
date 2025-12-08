@@ -120,9 +120,17 @@ def face_analysis_data(model_path, images_path) -> pd.DataFrame:
         timing = float(filepath.stem.split("_ts_")[1])
         image = mp.Image.create_from_file(filepath.as_posix())
         results = detector.detect(image)
+        
+        if not results.face_landmarks or len(results.face_landmarks) == 0:
+            print(f"no face detected in the frame : {filepath.as_posix()}")
+            continue
+        
         landmarks = results.face_landmarks[0]
         h_gaze_ratio, v_gaze_ratio = calculate_gaze_ratios(landmarks=landmarks)
-        blend_shapes = results.face_blendshapes[0]
+        if results.face_blendshapes and len(results.face_blendshapes) > 0:
+            blend_shapes = results.face_blendshapes[0]
+        else:
+            blend_shapes = []
         
         # filling the dataframe
         row = {
