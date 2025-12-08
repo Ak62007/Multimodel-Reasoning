@@ -2,7 +2,7 @@ import cv2 as cv
 import numpy as np
 import os
 
-def extract_frames(video_path, output_path):
+def extract_frames(video_path: str, output_path: str, nof_ps: int = 1):
     """
     input:
         video_path - path to the video.
@@ -45,7 +45,7 @@ def extract_frames(video_path, output_path):
             cv.imwrite(path, frame)
             
             frame_cnt += 1
-            current_time_ms += 1000
+            current_time_ms += 1000/nof_ps
             
             result.append((path, time_frame))
         else:
