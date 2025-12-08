@@ -5,23 +5,14 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "deepface==0.0.91",
+    "assemblyai>=0.48.1",
     "ipykernel>=7.1.0",
     "librosa>=0.11.0",
     "matplotlib>=3.10.7",
-    "mediapipe>=0.10.21",
+    "mediapipe>=0.10.14",
     "moviepy>=2.2.1",
-    "numpy>=1.26.4",
-    "openai-whisper>=20250625",
+    "numpy>=2.3.5",
     "opencv-python>=4.11.0.86",
     "pandas>=2.3.3",
-    "py-feat>=0.6.1",
-    "pyannote-audio>=3.4.0",
-    "pydantic>=2.12.5",
-    "pydantic-ai>=0.8.1",
-    "scipy<1.12",
-    "soundfile>=0.13.1",
-    "tf-keras>=2.18.0",
     "whisper-timestamped>=1.15.9",
-    "yt-dlp>=2025.11.12",
 ]
