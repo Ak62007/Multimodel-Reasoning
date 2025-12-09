@@ -1,6 +1,7 @@
 import os
 import math
 import pandas as pd
+# import numpy as np
 import mediapipe as mp
 from pathlib import Path
 from mediapipe.tasks import python
@@ -123,10 +124,18 @@ def face_analysis_data(model_path, images_path) -> pd.DataFrame:
         
         if not results.face_landmarks or len(results.face_landmarks) == 0:
             print(f"no face detected in the frame : {filepath.as_posix()}")
+            row = {
+                'Time': timing,
+                # 'h_ratio': np.nan,
+                # 'v_ratio': np.nan,
+            }
+            
+            fa_data.append(row)
             continue
         
         landmarks = results.face_landmarks[0]
         h_gaze_ratio, v_gaze_ratio = calculate_gaze_ratios(landmarks=landmarks)
+        
         if results.face_blendshapes and len(results.face_blendshapes) > 0:
             blend_shapes = results.face_blendshapes[0]
         else:
@@ -138,10 +147,13 @@ def face_analysis_data(model_path, images_path) -> pd.DataFrame:
             'h_ratio': h_gaze_ratio,
             'v_ratio': v_gaze_ratio
         }
-        for feature in blend_shapes:
-            row[feature.category_name] = feature.score
-            
-        fa_data.append(row)
+        
+        if len(blend_shapes) == 0:
+            fa_data.append(row)
+        else:
+            for feature in blend_shapes:
+                row[feature.category_name] = feature.score
+            fa_data.append(row)
 
     # Let's build the dataframe
     fa_data = pd.DataFrame(fa_data)
