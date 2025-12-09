@@ -14,5 +14,6 @@ dependencies = [
     "numpy>=2.3.5",
     "opencv-python>=4.11.0.86",
     "pandas>=2.3.3",
+    "statsmodels>=0.14.6",
     "whisper-timestamped>=1.15.9",
 ]
