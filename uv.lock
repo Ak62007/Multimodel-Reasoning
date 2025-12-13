@@ -289,6 +289,21 @@ wheels = [
 ]
 
 [[package]]
+name = "combo"
+version = "0.1.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "joblib" },
+    { name = "matplotlib" },
+    { name = "numba" },
+    { name = "numpy" },
+    { name = "pyod" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ff/76/1c86426e35a8b1cd5f404db654d2a602bac27263063163ead1230066c1e6/combo-0.1.3.tar.gz", hash = "sha256:6536d6d2f0a7a3a136c2127ba82c4bd640fc245c282c2d0060ad49070e57f42a", size = 38527, upload-time = "2022-04-02T16:20:07.788Z" }
+
+[[package]]
 name = "comm"
 version = "0.2.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1107,6 +1122,8 @@ dependencies = [
     { name = "opencv-python" },
     { name = "pandas" },
     { name = "pyarrow" },
+    { name = "pysad" },
+    { name = "rrcf" },
     { name = "scikit-learn" },
     { name = "seaborn" },
     { name = "statsmodels" },
@@ -1125,6 +1142,8 @@ requires-dist = [
     { name = "opencv-python", specifier = ">=4.11.0.86" },
     { name = "pandas", specifier = ">=2.3.3" },
     { name = "pyarrow", specifier = ">=22.0.0" },
+    { name = "pysad", specifier = ">=0.3.4" },
+    { name = "rrcf", specifier = ">=0.4.4" },
     { name = "scikit-learn", specifier = ">=1.7.2" },
     { name = "seaborn", specifier = ">=0.13.2" },
     { name = "statsmodels", specifier = ">=0.14.6" },
@@ -1928,12 +1947,45 @@ wheels = [
 ]
 
 [[package]]
+name = "pyod"
+version = "2.0.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "joblib" },
+    { name = "matplotlib" },
+    { name = "numba" },
+    { name = "numpy" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9b/08/285c2fa790a095a212c9300ed77b69bf1e90233853cb260ac0edcbb1b029/pyod-2.0.5.tar.gz", hash = "sha256:c1c2d2f3e8ebfb047c9b5da556cce924e64f7eeb1ad9d5af1455843ec13cb3d1", size = 169761, upload-time = "2025-04-29T22:26:59.531Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/29/38/dee2fc597010654c3a7588f0990192680c5f2d405fbf6f2e5f5c4df1c736/pyod-2.0.5-py3-none-any.whl", hash = "sha256:1a3182529c68e388be0671840bb11f83d5d1deb738ad931d294881f7d50e4fdb", size = 200628, upload-time = "2025-04-29T22:26:57.284Z" },
+]
+
+[[package]]
 name = "pyparsing"
 version = "3.2.5"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f2/a5/181488fc2b9d093e3972d2a472855aae8a03f000592dbfce716a512b3359/pyparsing-3.2.5.tar.gz", hash = "sha256:2df8d5b7b2802ef88e8d016a2eb9c7aeaa923529cd251ed0fe4608275d4105b6", size = 1099274, upload-time = "2025-09-21T04:11:06.277Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/10/5e/1aa9a93198c6b64513c9d7752de7422c06402de6600a8767da1524f9570b/pyparsing-3.2.5-py3-none-any.whl", hash = "sha256:e38a4f02064cf41fe6593d328d0512495ad1f3d8a91c4f73fc401b3079a59a5e", size = 113890, upload-time = "2025-09-21T04:11:04.117Z" },
+]
+
+[[package]]
+name = "pysad"
+version = "0.3.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "combo" },
+    { name = "numpy" },
+    { name = "pyod" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/79/79/76de7ab29f76a77d8057933ed7de8336a29badcf82d3e707094e73092cfb/pysad-0.3.4.tar.gz", hash = "sha256:59a2146405c9ddb8f73cfda49c7c52137c2bce7934a42ecd171f1ff6daf29238", size = 59860, upload-time = "2025-06-24T11:33:51.127Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9a/d3/049f4a22ce11e88035f4ddcb10e17bfbd3744e8f111c1be8732f2c74f852/pysad-0.3.4-py3-none-any.whl", hash = "sha256:5d9a90e6c4ff3ee86508bd41c8a016d2595097244730a99778bf91bda2f0b067", size = 68986, upload-time = "2025-06-24T11:33:49.771Z" },
 ]
 
 [[package]]
@@ -2101,6 +2153,15 @@ sdist = { url = "https://files.pythonhosted.org/packages/c9/74/b3ff8e6c8446842c3
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1e/db/4254e3eabe8020b458f1a747140d32277ec7a271daf1d235b70dc0b4e6e3/requests-2.32.5-py3-none-any.whl", hash = "sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6", size = 64738, upload-time = "2025-08-18T20:46:00.542Z" },
 ]
+
+[[package]]
+name = "rrcf"
+version = "0.4.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/22/4d/a67d50635f330cbbde37d387d7edfe3be035d448ffc91bf7d1cc480f0bcd/rrcf-0.4.4.tar.gz", hash = "sha256:a9bc832f0d57849543d83d55cd362bb629f62b189dd0421df243077a6cf97836", size = 14805, upload-time = "2023-04-30T02:25:29.594Z" }
 
 [[package]]
 name = "scikit-learn"
