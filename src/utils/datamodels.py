@@ -30,7 +30,7 @@ class Blink(BaseModel):
     is_anomalous: bool = Field(
         ...,
         description=("True if blink behavior deviates significantly from the speaker’s typical blinking pattern"
-                     "based on anomaly detection (e.g., RRCF or MAD threshold)."
+                     "based on anomaly detection (Robust Random Cut Forest algorithm used with MAD threshold)."
         )
     )
     
@@ -68,7 +68,7 @@ class Gaze(BaseModel):
     is_anomalous: bool = Field(
         ...,
         description=("True if gaze direction or movement is unusually unstable or extreme over time"
-                     "based on anomaly detection (e.g., RRCF or MAD threshold)."
+                     "based on anomaly detection (Robust Random Cut Forest algorithm used with MAD threshold)."
         )
     )
     
@@ -113,7 +113,7 @@ class Jaw(BaseModel):
     is_anomalous: bool = Field(
         ...,
         description=("True if jaw movement intensity or pattern deviates from speaker’s baseline articulation"
-                     "based on anomaly detection (e.g., RRCF or MAD threshold)."
+                     "based on anomaly detection (Robust Random Cut Forest algorithm used with MAD threshold)."
         )
     )
     
@@ -168,7 +168,7 @@ class Smile(BaseModel):
     is_anomalous: bool = Field(
         ...,
         description=("True if smiling behavior is unusually strong, absent, or unstable for the speaker"
-                     "based on anomaly detection (e.g., RRCF or MAD threshold)."
+                     "based on anomaly detection (Robust Random Cut Forest algorithm used with MAD threshold)."
         )
     )
     
@@ -207,7 +207,7 @@ class LoudnessState(BaseModel):
         ...,
         description=(
             "True if loudness deviates abnormally from the speaker’s typical pattern "
-            "based on anomaly detection (e.g., RRCF or MAD threshold)."
+            "based on anomaly detection (Robust Random Cut Forest algorithm used with MAD threshold)."
         )
     )
     
@@ -246,7 +246,7 @@ class PitchState(BaseModel):
         description=(
             "True if pitch deviation is statistically unusual for the speaker, "
             "suggesting stress, excitement, uncertainty, or emphasis."
-            "based on anomaly detection (e.g., RRCF or MAD threshold)."
+            "based on anomaly detection (Robust Random Cut Forest algorithm used with MAD threshold)."
         )
     )
     
@@ -284,7 +284,7 @@ class PitchStd(BaseModel):
         description=(
             "True if pitch expressiveness is unusually high or low compared to the speaker’s baseline, "
             "potentially signaling emotional or cognitive shifts."
-            "based on anomaly detection (e.g., RRCF or MAD threshold)."
+            "based on anomaly detection (Robust Random Cut Forest algorithm used with MAD threshold)."
         )
     )
     
@@ -322,7 +322,7 @@ class WPS(BaseModel):
         ...,
         description=(
             "True if speaking rate deviates abnormally from the speaker’s typical pattern, "
-            "as determined by anomaly detection (e.g., RRCF score or MAD threshold)."
+            "as determined by anomaly detection (Robust Random Cut Forest algorithm used with MAD threshold)."
         )
     )
 
@@ -341,3 +341,65 @@ class WPS(BaseModel):
         )
     )
 
+
+class FillerPercentageIncrease(BaseModel):
+    filler_percentage_level: Literal[
+        'normal',
+        'abnormally high'] = Field(
+            ...,
+            description="Increase in percentage of filler words usage is 'normal' or 'abnormally high'"
+        )
+    
+    is_anomalous: bool = Field(
+        ...,
+        description=(
+            "True if increase in percentage of filler words usage deviates abnormally from the speaker’s typical pattern, "
+            "as determined by anomaly detection (Robust Random Cut Forest algorithm used with MAD threshold)."
+        )
+    )
+
+    continuous_anomaly: bool = Field(
+        ...,
+        description=(
+            "True if this frame is part of a sustained increase in percentage of filler words usage anomaly spanning multiple consecutive frames."
+        )
+    )
+
+    part_of_anomalous_range: list[float] | None = Field(
+        default=None,
+        description=(
+            "List of timestamps (in seconds) representing the full continuous time interval "
+            "to which this anomalous increase in percentage of filler words usage frame belongs."
+        )
+    )
+    
+class PausePercentageIncrease(BaseModel):
+    pause_percentage_level: Literal[
+        'normal',
+        'abnormally high'] = Field(
+            ...,
+            description="Increase in percentage of pauses taken is 'normal' or 'abnormally high'"
+        )
+    
+    is_anomalous: bool = Field(
+        ...,
+        description=(
+            "True if increase in percentage of pauses taken deviates abnormally from the speaker’s typical pattern, "
+            "as determined by anomaly detection (Robust Random Cut Forest algorithm used with MAD threshold)."
+        )
+    )
+
+    continuous_anomaly: bool = Field(
+        ...,
+        description=(
+            "True if this frame is part of a sustained increase in percentage of pauses taken anomaly spanning multiple consecutive frames."
+        )
+    )
+
+    part_of_anomalous_range: list[float] | None = Field(
+        default=None,
+        description=(
+            "List of timestamps (in seconds) representing the full continuous time interval "
+            "to which this anomalous increase in percentage of pauses taken frame belongs."
+        )
+    )

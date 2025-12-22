@@ -131,7 +131,7 @@ def run_rrcf(features: np.ndarray, num_trees: int = 40, tree_size: int = 256, sh
     return anomaly_scores        
 
 
-def get_anomalous_time_ranges(min: int, max: int, anomalies_time: pd.Series | list) -> list[list[float]]:
+def get_anomalous_time_ranges(anomalies_time: pd.DataFrame, min: int = 0.5, max: int = 2.0) -> list[list[float]]:
     """Given the anomalous time values, This function tries to find the continous anomalous range not the sudden spikes.
 
     Args:
@@ -146,30 +146,30 @@ def get_anomalous_time_ranges(min: int, max: int, anomalies_time: pd.Series | li
     if len(anomalies_time) == 0:
         return []
     
-    if isinstance(anomalies_time, pd.Series):
-        anomalies_time = anomalies_time.tolist()
-    else:
-        anomalies_time = [t.item() if hasattr(t, 'item') else t for t in anomalies_time]
+    # if isinstance(anomalies_time, pd.Series):
+    #     anomalies_time = anomalies_time.tolist()
+    # else:
+    #     anomalies_time = [t.item() if hasattr(t, 'item') else t for t in anomalies_time]
     
     if len(anomalies_time) == 1:
         return [anomalies_time[0].item()]
     
     continous_ranges = []
-    start = anomalies_time[0]
-    continous_range = [start]
+    start = anomalies_time.iloc[0]['Time']
+    continous_range = [int(anomalies_time.iloc[0]['anomaly_index'])]
     for i in range(1, len(anomalies_time)):
-        current = anomalies_time[i]
+        current = anomalies_time.iloc[i]['Time']
         if min <= (current - start) <= max:
-            continous_range.append(current)
+            continous_range.append(int(anomalies_time.iloc[i]['anomaly_index']))
             start = current
         else:
             start = current
             if len(continous_range) == 1:
-                continous_range = [start]
+                continous_range = [int(anomalies_time.iloc[i]['anomaly_index'])]
                 continue
             else:
                 continous_ranges.append(continous_range)
-                continous_range = [start]
+                continous_range = [int(anomalies_time.iloc[i]['anomaly_index'])]
                 continue
     
     return continous_ranges
