@@ -1,15 +1,17 @@
 from pydantic import BaseModel, Field
-from typing import Literal, Union
+from typing import Literal, Union, Optional
 
 class Blink(BaseModel):
     """Eye blinking behavior extracted per time frame"""
 
-    intensity: float = Field(
+    intensity: Optional[float] = Field(
+        default=None,
         ge=0.0, le=1.0,
         description="Normalized eyelid closure strength; 0 means fully open eyes, 1 means fully closed"
     )
 
-    asymmetry: float = Field(
+    asymmetry: Optional[float] = Field(
+        default=None,
         ge=0.0, le=1.0,
         description="Absolute difference in closure between left and right eye; higher means uneven blinking"
     )
@@ -44,11 +46,13 @@ class Blink(BaseModel):
 class Gaze(BaseModel):
     """Head-normalized gaze direction and attention signals per frame"""
 
-    horizontal_deviation: float = Field(
+    horizontal_deviation: Optional[float] = Field(
+        default=None,
         description="Horizontal gaze offset where -1 indicates strong left, 0 centered, +1 strong right"
     )
 
-    vertical_deviation: float = Field(
+    vertical_deviation: Optional[float] = Field(
+        default=None,
         description="Vertical gaze offset where -1 indicates down, 0 centered, +1 looking up"
     )
 
@@ -87,12 +91,14 @@ class Jaw(BaseModel):
         description="Degree of jaw opening; 0 is fully closed, 1 is maximally open"
     )
 
-    lateral: float = Field(
+    lateral: Optional[float] = Field(
+        default=None,
         ge=-1.0, le=1.0,
         description="Side-to-side jaw movement; -1 left, 0 centered, +1 right"
     )
 
-    forward: float = Field(
+    forward: Optional[float] = Field(
+        default=None,
         ge=0.0, le=1.0,
         description="Forward jaw protrusion relative to neutral position"
     )
@@ -132,22 +138,26 @@ class Smile(BaseModel):
         description="Overall smile strength; 0 is neutral face, 1 is full smile"
     )
 
-    asymmetry: float = Field(
+    asymmetry: Optional[float] = Field(
+        default=None,
         ge=0.0, le=1.0,
         description="Difference between left and right smile activation; higher means uneven smile"
     )
 
-    left_intensity: float = Field(
+    left_intensity: Optional[float] = Field(
+        default=None,
         ge=0.0, le=1.0,
         description="Smile activation strength on the left side of the mouth"
     )
 
-    right_intensity: float = Field(
+    right_intensity: Optional[float] = Field(
+        default=None,
         ge=0.0, le=1.0,
         description="Smile activation strength on the right side of the mouth"
     )
 
-    mouth_stretch: float = Field(
+    mouth_stretch: Optional[float] = Field(
+        default=None,
         ge=0.0, le=1.0,
         description="Horizontal mouth expansion indicating smile width rather than curvature"
     )
