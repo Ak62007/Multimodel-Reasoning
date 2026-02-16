@@ -1,6 +1,11 @@
 from src.utils.datamodels import *
 from pydantic import BaseModel, Field
-from typing import Tuple
+from typing import Tuple, Literal
+
+class VisualState(BaseModel):
+    status: Literal["baseline", "anomalous"] = Field(
+        description=""
+    )
 
 class VisualReport(BaseModel):
     time_range : Tuple[float, float] = Field(
@@ -8,7 +13,7 @@ class VisualReport(BaseModel):
         description="Time frame (start, end) in secs"
         )
     
-    report : str = Field(..., description="Short and Crisp report for the visual data")
+    
 
 class AudioReport(BaseModel):
     time_range : Tuple[float, float] = Field(
