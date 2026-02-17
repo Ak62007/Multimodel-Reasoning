@@ -385,7 +385,7 @@ def feature_engineering(c_anomalies: Optional[Dict[str, List[List[int]]]], anoma
                     is_blinking=t_blink_data['blinking'],
                     rz_score=norm_rz_df.iloc[i]['blink_intensity_smooth_rz'],
                     is_anomalous=b_is_anomalous,
-                    continuos_anomaly=b_continuos_anomaly,
+                    continuous_anomaly=b_continuos_anomaly,
                     part_of_anomalous_range=b_part_of_anomalous_range
                 )
             else:
@@ -393,7 +393,7 @@ def feature_engineering(c_anomalies: Optional[Dict[str, List[List[int]]]], anoma
                     is_blinking=t_blink_data['blinking'],
                     rz_score=norm_rz_df.iloc[i]['blink_intensity_smooth_rz'],
                     is_anomalous=b_is_anomalous,
-                    continuos_anomaly=b_continuos_anomaly,
+                    continuous_anomaly=b_continuos_anomaly,
                     part_of_anomalous_range=b_part_of_anomalous_range
                 )
             
@@ -407,7 +407,7 @@ def feature_engineering(c_anomalies: Optional[Dict[str, List[List[int]]]], anoma
                     primary_direction=t_gaze_data['primary_direction'],
                     rz_score=norm_rz_df.iloc[i]['gaze_magnitude_smooth_rz'],
                     is_anomalous=g_is_anomalous,
-                    continuos_anomaly=g_continuos_anomaly,
+                    continuous_anomaly=g_continuos_anomaly,
                     part_of_anomalous_range=g_part_of_anomalous_range
                 )
             else:
@@ -415,7 +415,7 @@ def feature_engineering(c_anomalies: Optional[Dict[str, List[List[int]]]], anoma
                     primary_direction=t_gaze_data['primary_direction'],
                     rz_score=norm_rz_df.iloc[i]['gaze_magnitude_smooth_rz'],
                     is_anomalous=g_is_anomalous,
-                    continuos_anomaly=g_continuos_anomaly,
+                    continuous_anomaly=g_continuos_anomaly,
                     part_of_anomalous_range=g_part_of_anomalous_range
                 )
             
@@ -430,7 +430,7 @@ def feature_engineering(c_anomalies: Optional[Dict[str, List[List[int]]]], anoma
                     is_open=t_jaw_data['is_open'],
                     rz_score=norm_rz_df.iloc[i]['jaw_magnitude_smooth_rz'],
                     is_anomalous=j_is_anomalous,
-                    continuos_anomaly=j_continuos_anomaly,
+                    continuous_anomaly=j_continuos_anomaly,
                     part_of_anomalous_range=j_part_of_anomalous_range
                 )
             else:
@@ -439,7 +439,7 @@ def feature_engineering(c_anomalies: Optional[Dict[str, List[List[int]]]], anoma
                     is_open=t_jaw_data['is_open'],
                     rz_score=norm_rz_df.iloc[i]['jaw_magnitude_smooth_rz'],
                     is_anomalous=j_is_anomalous,
-                    continuos_anomaly=j_continuos_anomaly,
+                    continuous_anomaly=j_continuos_anomaly,
                     part_of_anomalous_range=j_part_of_anomalous_range
                 )
                 
@@ -456,7 +456,7 @@ def feature_engineering(c_anomalies: Optional[Dict[str, List[List[int]]]], anoma
                     is_smiling=t_smile_data['is_smiling'],
                     rz_score=norm_rz_df.iloc[i]['smile_intensity_smooth_rz'],
                     is_anomalous=s_is_anomalous,
-                    continuos_anomaly=s_continuos_anomaly,
+                    continuous_anomaly=s_continuos_anomaly,
                     part_of_anomalous_range=s_part_of_anomalous_range
                 )
             else:
@@ -465,7 +465,7 @@ def feature_engineering(c_anomalies: Optional[Dict[str, List[List[int]]]], anoma
                     is_smiling=t_smile_data['is_smiling'],
                     rz_score=norm_rz_df.iloc[i]['smile_intensity_smooth_rz'],
                     is_anomalous=s_is_anomalous,
-                    continuos_anomaly=s_continuos_anomaly,
+                    continuous_anomaly=s_continuos_anomaly,
                     part_of_anomalous_range=s_part_of_anomalous_range
                 )
                 
@@ -505,7 +505,7 @@ def feature_engineering(c_anomalies: Optional[Dict[str, List[List[int]]]], anoma
                     level=loudness_level(rz=norm_rz_df.iloc[i]['loudness_db_smooth_rz']),
                     rz_score=norm_rz_df.iloc[i]['loudness_db_smooth_rz'],
                     is_anomalous=l_is_anomalous,
-                    continuos_anomaly=l_continuos_anomaly,
+                    continuous_anomaly=l_continuos_anomaly,
                     part_of_anomalous_range=l_part_of_anomalous_range
                 )
                 
@@ -513,7 +513,7 @@ def feature_engineering(c_anomalies: Optional[Dict[str, List[List[int]]]], anoma
                     relative_level=pitch_relative_level(rz=norm_rz_df.iloc[i]['pitch_relative_st_smooth_rz']),
                     rz_score=norm_rz_df.iloc[i]['pitch_relative_st_smooth_rz'],
                     is_anomalous=pa_is_anomalous,
-                    continuos_anomaly=pa_continuos_anomaly,
+                    continuous_anomaly=pa_continuos_anomaly,
                     part_of_anomalous_range=pa_part_of_anomalous_range
                 )
                 
@@ -521,7 +521,7 @@ def feature_engineering(c_anomalies: Optional[Dict[str, List[List[int]]]], anoma
                     expressiveness=pitch_expressiveness_level(rz=norm_rz_df.iloc[i]['pitch_expressiveness_st_smooth_rz']),
                     rz_score=norm_rz_df.iloc[i]['pitch_expressiveness_st_smooth_rz'],
                     is_anomalous=ps_is_anomalous,
-                    continuos_anomaly=ps_continuos_anomaly,
+                    continuous_anomaly=ps_continuos_anomaly,
                     part_of_anomalous_range=ps_part_of_anomalous_range
                 )
                 

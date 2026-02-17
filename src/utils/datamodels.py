@@ -36,7 +36,7 @@ class Blink(BaseModel):
         )
     )
     
-    continuos_anomaly: bool = Field(..., description="True if this frame is part of a sustained speaking-rate anomaly spanning multiple consecutive frames.")
+    continuous_anomaly: bool = Field(..., description="True if this frame is part of a sustained speaking-rate anomaly spanning multiple consecutive frames.")
     
     part_of_anomalous_range: list[float] | None = Field(
         description=("List of timestamps (in seconds) representing the full continuous time interval "
@@ -76,7 +76,7 @@ class Gaze(BaseModel):
         )
     )
     
-    continuos_anomaly: bool = Field(..., description="True if this frame is part of a sustained speaking-rate anomaly spanning multiple consecutive frames.")
+    continuous_anomaly: bool = Field(..., description="True if this frame is part of a sustained speaking-rate anomaly spanning multiple consecutive frames.")
     
     part_of_anomalous_range: list[float] | None = Field(
         description=("List of timestamps (in seconds) representing the full continuous time interval "
@@ -123,7 +123,7 @@ class Jaw(BaseModel):
         )
     )
     
-    continuos_anomaly: bool = Field(..., description="True if this frame is part of a sustained speaking-rate anomaly spanning multiple consecutive frames.")
+    continuous_anomaly: bool = Field(..., description="True if this frame is part of a sustained speaking-rate anomaly spanning multiple consecutive frames.")
     
     part_of_anomalous_range: list[float] | None = Field(
         description=("List of timestamps (in seconds) representing the full continuous time interval "
@@ -182,7 +182,7 @@ class Smile(BaseModel):
         )
     )
     
-    continuos_anomaly: bool = Field(..., description="True if this frame is part of a sustained speaking-rate anomaly spanning multiple consecutive frames.")
+    continuous_anomaly: bool = Field(..., description="True if this frame is part of a sustained speaking-rate anomaly spanning multiple consecutive frames.")
     
     part_of_anomalous_range: list[float] | None = Field(
         description=("List of timestamps (in seconds) representing the full continuous time interval "
@@ -221,7 +221,7 @@ class LoudnessState(BaseModel):
         )
     )
     
-    continuos_anomaly: bool = Field(..., description="True if this frame is part of a sustained speaking-rate anomaly spanning multiple consecutive frames.")
+    continuous_anomaly: bool = Field(..., description="True if this frame is part of a sustained speaking-rate anomaly spanning multiple consecutive frames.")
     
     part_of_anomalous_range: list[float] | None = Field(
         description=("List of timestamps (in seconds) representing the full continuous time interval "
@@ -260,7 +260,7 @@ class PitchState(BaseModel):
         )
     )
     
-    continuos_anomaly: bool = Field(..., description="True if this frame is part of a sustained speaking-rate anomaly spanning multiple consecutive frames.")
+    continuous_anomaly: bool = Field(..., description="True if this frame is part of a sustained speaking-rate anomaly spanning multiple consecutive frames.")
     
     part_of_anomalous_range: list[float] | None = Field(
         description=("List of timestamps (in seconds) representing the full continuous time interval "
@@ -298,7 +298,7 @@ class PitchStd(BaseModel):
         )
     )
     
-    continuos_anomaly: bool = Field(..., description="True if this frame is part of a sustained speaking-rate anomaly spanning multiple consecutive frames.")
+    continuous_anomaly: bool = Field(..., description="True if this frame is part of a sustained speaking-rate anomaly spanning multiple consecutive frames.")
     
     part_of_anomalous_range: list[float] | None = Field(
         description=("List of timestamps (in seconds) representing the full continuous time interval "
