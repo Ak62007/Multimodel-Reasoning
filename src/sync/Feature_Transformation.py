@@ -291,36 +291,27 @@ def audio_metrics_from_raw(
         "pitch_expressiveness_st": round(pitch_expressiveness_st, 2),
     }
 
-def feature_engineering(c_anomalies: Optional[Dict[str, List[List[int]]]], anomalies: Optional[Dict[str, List[int]]], df: Optional[pd.DataFrame], norm_rz_df: Optional[pd.DataFrame], speaker_median_pitch: float, speaker: str, mode: Literal["training", "evaluation"]):
-    """This Function transforms the current dataframe and joins and combines the features to create more meaningful features
-
-    Args:
-        c_anomalies (Optional[Dict[str, List[List[int]]]]): dictionary of continous anomaly times
-        anomalies (Optional[Dict[str, List[int]]]): dictionary of all anomalous times for all features
-        df (Optional[pd.DataFrame]): ori
-        norm_rz_df (Optional[pd.DataFrame]): dataframe after feature creation, smoothing and normalization
-        speaker_median_pitch (float): median pitch of the user
-        speaker (str): user id for the speaker column
-        mode (Literal[&quot;training&quot;, &quot;evaluation&quot;]): mode: training or evaluation
-
-    Returns:
-        pd.DataFrame: dataframe with feature engineered features or returns final dataframe to feed to the agentic architecture.
+def feature_engineering(c_anomalies: Optional[Dict[str, List[List[float]]]], anomalies: Optional[Dict[str, List[float]]], df: Optional[pd.DataFrame], norm_rz_df: Optional[pd.DataFrame], speaker_median_pitch: float, speaker: str, mode: Literal["training", "evaluation"]):
+    """
+    Fixed feature_engineering that uses Time-based lookups instead of Index-based lookups.
     """
     new_df = []
+
+    time_series = df['Time'] if 'Time' in df.columns else norm_rz_df['Time']
+    
     for i in range(len(df)):
         
-        # Visual Tranformed data
+        current_time = time_series.iloc[i] 
         
-        # getting transformed blink data
+        # Visual Transformed data
         t_blink_data = blink_data(
             mode=mode,
             eyeblinkleft=df.iloc[i]['eyeBlinkLeft'],
             eyeblinkright=df.iloc[i]['eyeBlinkRight'],
             eyesquintleft=df.iloc[i]['eyeSquintLeft'],
             eyesquintright=df.iloc[i]['eyeSquintRight']
-            )
+        )
         
-        # getting transformed gaze data 
         t_gaze_data = gaze_data(
             mode=mode,
             eyelookdownleft=df.iloc[i]['eyeLookDownLeft'],
@@ -330,7 +321,6 @@ def feature_engineering(c_anomalies: Optional[Dict[str, List[List[int]]]], anoma
             h_ratio=df.iloc[i]['h_ratio']
         )
         
-        # getting transformed jaw data
         t_jaw_data = jaw_data(
             mode=mode,
             jaw_open=df.iloc[i]['jawOpen'],
@@ -339,7 +329,6 @@ def feature_engineering(c_anomalies: Optional[Dict[str, List[List[int]]]], anoma
             jaw_right=df.iloc[i]['jawRight']
         )
         
-        # getting transformed smile data
         t_smile_data = smile_data(
             mode=mode,
             mouthsmileleft=df.iloc[i]['mouthSmileLeft'],
@@ -373,133 +362,94 @@ def feature_engineering(c_anomalies: Optional[Dict[str, List[List[int]]]], anoma
                 "pitch_expressiveness_st": pitch_expressiveness_st
             }
             
-            new_df.append(new_row)
+            new_df.append(new_row)  
         else:
-            b_is_anomalous = True if i in anomalies['blink_intensity_smooth_rz'] else False
-            b_continuos_anomaly = any(i in anom for anom in c_anomalies['blink_intensity_smooth_rz'])
-            b_part_of_anomalous_range = next((anom for anom in c_anomalies['blink_intensity_smooth_rz'] if i in anom), None)
-            if b_is_anomalous:
-                blink = Blink(
-                    intensity=t_blink_data['intensity'],
-                    asymmetry=t_blink_data['asymmetry'],
-                    is_blinking=t_blink_data['blinking'],
-                    rz_score=norm_rz_df.iloc[i]['blink_intensity_smooth_rz'],
-                    is_anomalous=b_is_anomalous,
-                    continuous_anomaly=b_continuos_anomaly,
-                    part_of_anomalous_range=b_part_of_anomalous_range
-                )
-            else:
-                blink = Blink(
-                    is_blinking=t_blink_data['blinking'],
-                    rz_score=norm_rz_df.iloc[i]['blink_intensity_smooth_rz'],
-                    is_anomalous=b_is_anomalous,
-                    continuous_anomaly=b_continuos_anomaly,
-                    part_of_anomalous_range=b_part_of_anomalous_range
-                )
+            b_is_anomalous = True if current_time in anomalies['blink_intensity_smooth_rz'] else False
+            b_continuos_anomaly = any(current_time in anom for anom in c_anomalies['blink_intensity_smooth_rz'])
+            b_part_of_anomalous_range = next((anom for anom in c_anomalies['blink_intensity_smooth_rz'] if current_time in anom), None)
+
+            blink = Blink(
+                intensity=t_blink_data['intensity'],
+                asymmetry=t_blink_data['asymmetry'],
+                is_blinking=t_blink_data['blinking'],
+                rz_score=norm_rz_df.iloc[i]['blink_intensity_smooth_rz'],
+                is_anomalous=b_is_anomalous,
+                continuous_anomaly=b_continuos_anomaly,
+                part_of_anomalous_range=b_part_of_anomalous_range
+            )
             
-            g_is_anomalous = True if i in anomalies['gaze_magnitude_smooth_rz'] else False
-            g_continuos_anomaly = any(i in anom for anom in c_anomalies['gaze_magnitude_smooth_rz'])
-            g_part_of_anomalous_range = next((anom for anom in c_anomalies['gaze_magnitude_smooth_rz'] if i in anom), None)
-            if g_is_anomalous:
-                gaze = Gaze(
-                    horizontal_deviation=t_gaze_data['horizontal_deviation'],
-                    vertical_deviation=t_gaze_data['vertical_deviation'],
-                    primary_direction=t_gaze_data['primary_direction'],
-                    rz_score=norm_rz_df.iloc[i]['gaze_magnitude_smooth_rz'],
-                    is_anomalous=g_is_anomalous,
-                    continuous_anomaly=g_continuos_anomaly,
-                    part_of_anomalous_range=g_part_of_anomalous_range
-                )
-            else:
-                gaze = Gaze(
-                    primary_direction=t_gaze_data['primary_direction'],
-                    rz_score=norm_rz_df.iloc[i]['gaze_magnitude_smooth_rz'],
-                    is_anomalous=g_is_anomalous,
-                    continuous_anomaly=g_continuos_anomaly,
-                    part_of_anomalous_range=g_part_of_anomalous_range
-                )
+            g_is_anomalous = True if current_time in anomalies['gaze_magnitude_smooth_rz'] else False
+            g_continuos_anomaly = any(current_time in anom for anom in c_anomalies['gaze_magnitude_smooth_rz'])
+            g_part_of_anomalous_range = next((anom for anom in c_anomalies['gaze_magnitude_smooth_rz'] if current_time in anom), None)
             
-            j_is_anomalous = True if i in anomalies['jaw_magnitude_smooth_rz'] else False
-            j_continuos_anomaly = any(i in anom for anom in c_anomalies['jaw_magnitude_smooth_rz'])
-            j_part_of_anomalous_range = next((anom for anom in c_anomalies['jaw_magnitude_smooth_rz'] if i in anom), None)
-            if j_is_anomalous:
-                jaw = Jaw(
-                    open=t_jaw_data['open'],
-                    lateral=t_jaw_data['lateral'],
-                    forward=t_jaw_data['forward'],
-                    is_open=t_jaw_data['is_open'],
-                    rz_score=norm_rz_df.iloc[i]['jaw_magnitude_smooth_rz'],
-                    is_anomalous=j_is_anomalous,
-                    continuous_anomaly=j_continuos_anomaly,
-                    part_of_anomalous_range=j_part_of_anomalous_range
-                )
-            else:
-                jaw = Jaw(
-                    open=t_jaw_data['open'],
-                    is_open=t_jaw_data['is_open'],
-                    rz_score=norm_rz_df.iloc[i]['jaw_magnitude_smooth_rz'],
-                    is_anomalous=j_is_anomalous,
-                    continuous_anomaly=j_continuos_anomaly,
-                    part_of_anomalous_range=j_part_of_anomalous_range
-                )
+            gaze = Gaze(
+                horizontal_deviation=t_gaze_data['horizontal_deviation'],
+                vertical_deviation=t_gaze_data['vertical_deviation'],
+                primary_direction=t_gaze_data['primary_direction'],
+                rz_score=norm_rz_df.iloc[i]['gaze_magnitude_smooth_rz'],
+                is_anomalous=g_is_anomalous,
+                continuous_anomaly=g_continuos_anomaly,
+                part_of_anomalous_range=g_part_of_anomalous_range
+            )
+            
+            j_is_anomalous = True if current_time in anomalies['jaw_magnitude_smooth_rz'] else False
+            j_continuos_anomaly = any(current_time in anom for anom in c_anomalies['jaw_magnitude_smooth_rz'])
+            j_part_of_anomalous_range = next((anom for anom in c_anomalies['jaw_magnitude_smooth_rz'] if current_time in anom), None)
+            
+            jaw = Jaw(
+                open=t_jaw_data['open'],
+                lateral=t_jaw_data['lateral'],
+                forward=t_jaw_data['forward'],
+                is_open=t_jaw_data['is_open'],
+                rz_score=norm_rz_df.iloc[i]['jaw_magnitude_smooth_rz'],
+                is_anomalous=j_is_anomalous,
+                continuous_anomaly=j_continuos_anomaly,
+                part_of_anomalous_range=j_part_of_anomalous_range
+            )
                 
-            s_is_anomalous = True if i in anomalies['smile_intensity_smooth_rz'] else False
-            s_continuos_anomaly = any(i in anom for anom in c_anomalies['smile_intensity_smooth_rz'])
-            s_part_of_anomalous_range = next((anom for anom in c_anomalies['smile_intensity_smooth_rz'] if i in anom), None)
-            if s_is_anomalous:
-                smile = Smile(
-                    intensity=t_smile_data['intensity'],
-                    asymmetry=t_smile_data['asymmetry'],
-                    left_intensity=t_smile_data['left_intensity'],
-                    right_intensity=t_smile_data['right_intensity'],
-                    mouth_stretch=t_smile_data['mouth_stretch'],
-                    is_smiling=t_smile_data['is_smiling'],
-                    rz_score=norm_rz_df.iloc[i]['smile_intensity_smooth_rz'],
-                    is_anomalous=s_is_anomalous,
-                    continuous_anomaly=s_continuos_anomaly,
-                    part_of_anomalous_range=s_part_of_anomalous_range
-                )
-            else:
-                smile = Smile(
-                    intensity=t_smile_data['intensity'],
-                    is_smiling=t_smile_data['is_smiling'],
-                    rz_score=norm_rz_df.iloc[i]['smile_intensity_smooth_rz'],
-                    is_anomalous=s_is_anomalous,
-                    continuous_anomaly=s_continuos_anomaly,
-                    part_of_anomalous_range=s_part_of_anomalous_range
-                )
+            s_is_anomalous = True if current_time in anomalies['smile_intensity_smooth_rz'] else False
+            s_continuos_anomaly = any(current_time in anom for anom in c_anomalies['smile_intensity_smooth_rz'])
+            s_part_of_anomalous_range = next((anom for anom in c_anomalies['smile_intensity_smooth_rz'] if current_time in anom), None)
+            
+            smile = Smile(
+                intensity=t_smile_data['intensity'],
+                asymmetry=t_smile_data['asymmetry'],
+                left_intensity=t_smile_data['left_intensity'],
+                right_intensity=t_smile_data['right_intensity'],
+                mouth_stretch=t_smile_data['mouth_stretch'],
+                is_smiling=t_smile_data['is_smiling'],
+                rz_score=norm_rz_df.iloc[i]['smile_intensity_smooth_rz'],
+                is_anomalous=s_is_anomalous,
+                continuous_anomaly=s_continuos_anomaly,
+                part_of_anomalous_range=s_part_of_anomalous_range
+            )
                 
             # Audio 
             if norm_rz_df.iloc[i]['speaker'] == speaker:
-                # loudness
-                l_is_anomalous = True if i in anomalies['loudness_db_smooth_rz'] else False
-                l_continuos_anomaly = any(i in anom for anom in c_anomalies['loudness_db_smooth_rz'])
-                l_part_of_anomalous_range = next((anom for anom in c_anomalies['loudness_db_smooth_rz'] if i in anom), None)
+                l_is_anomalous = True if current_time in anomalies['loudness_db_smooth_rz'] else False
+                l_continuos_anomaly = any(current_time in anom for anom in c_anomalies['loudness_db_smooth_rz'])
+                l_part_of_anomalous_range = next((anom for anom in c_anomalies['loudness_db_smooth_rz'] if current_time in anom), None)
                 
-                # pitch_avg
-                pa_is_anomalous = True if i in anomalies['pitch_relative_st_smooth_rz'] else False
-                pa_continuos_anomaly = any(i in anom for anom in c_anomalies['pitch_relative_st_smooth_rz'])
-                pa_part_of_anomalous_range = next((anom for anom in c_anomalies['pitch_relative_st_smooth_rz'] if i in anom), None)
+                pa_is_anomalous = True if current_time in anomalies['pitch_relative_st_smooth_rz'] else False
+                pa_continuos_anomaly = any(current_time in anom for anom in c_anomalies['pitch_relative_st_smooth_rz'])
+                pa_part_of_anomalous_range = next((anom for anom in c_anomalies['pitch_relative_st_smooth_rz'] if current_time in anom), None)
                 
-                # pitch_std
-                ps_is_anomalous = True if i in anomalies['pitch_expressiveness_st_smooth_rz'] else False
-                ps_continuos_anomaly = any(i in anom for anom in c_anomalies['pitch_expressiveness_st_smooth_rz'])
-                ps_part_of_anomalous_range = next((anom for anom in c_anomalies['pitch_expressiveness_st_smooth_rz'] if i in anom), None)
+                ps_is_anomalous = True if current_time in anomalies['pitch_expressiveness_st_smooth_rz'] else False
+                ps_continuos_anomaly = any(current_time in anom for anom in c_anomalies['pitch_expressiveness_st_smooth_rz'])
+                ps_part_of_anomalous_range = next((anom for anom in c_anomalies['pitch_expressiveness_st_smooth_rz'] if current_time in anom), None)
                 
-                # wps
-                w_is_anomalous = True if i in anomalies['wps_smooth_rz'] else False
-                w_continuos_anomaly = any(i in anom for anom in c_anomalies['wps_smooth_rz'])
-                w_part_of_anomalous_range = next((anom for anom in c_anomalies['wps_smooth_rz'] if i in anom), None)
+                w_is_anomalous = True if current_time in anomalies['wps_smooth_rz'] else False
+                w_continuos_anomaly = any(current_time in anom for anom in c_anomalies['wps_smooth_rz'])
+                w_part_of_anomalous_range = next((anom for anom in c_anomalies['wps_smooth_rz'] if current_time in anom), None)
                 
-                # filler words usage
-                f_is_anomalous = True if i in anomalies['filler_percentage'] else False
-                f_continuos_anomaly = any(i in anom for anom in c_anomalies['filler_percentage'])
-                f_part_of_anomalous_range = next((anom for anom in c_anomalies['filler_percentage'] if i in anom), None)
+                f_is_anomalous = True if current_time in anomalies['filler_percentage'] else False
+                f_continuos_anomaly = any(current_time in anom for anom in c_anomalies['filler_percentage'])
+                f_part_of_anomalous_range = next((anom for anom in c_anomalies['filler_percentage'] if current_time in anom), None)
                 
-                # pause taken
-                p_is_anomalous = True if i in anomalies['pause_percent_pr'] else False
-                p_continuos_anomaly = any(i in anom for anom in c_anomalies['pause_percent_pr'])
-                p_part_of_anomalous_range = next((anom for anom in c_anomalies['pause_percent_pr'] if i in anom), None)
+                p_is_anomalous = True if current_time in anomalies['pause_percent_pr'] else False
+                p_continuos_anomaly = any(current_time in anom for anom in c_anomalies['pause_percent_pr'])
+                p_part_of_anomalous_range = next((anom for anom in c_anomalies['pause_percent_pr'] if current_time in anom), None)
+                
                 
                 loudnesstate = LoudnessState(
                     level=loudness_level(rz=norm_rz_df.iloc[i]['loudness_db_smooth_rz']),
@@ -546,8 +496,7 @@ def feature_engineering(c_anomalies: Optional[Dict[str, List[List[int]]]], anoma
                     continuous_anomaly=p_continuos_anomaly,
                     part_of_anomalous_range=p_part_of_anomalous_range
                 )
-                
-                # new_row
+
                 new_row = {
                     "blinking_data": blink.model_dump(),
                     "gaze_data": gaze.model_dump(),
@@ -561,7 +510,6 @@ def feature_engineering(c_anomalies: Optional[Dict[str, List[List[int]]]], anoma
                     "pauses_taken": pausepercentageincrease.model_dump()
                 }
             else:
-                # new_row
                 new_row = {
                     "blinking_data": blink.model_dump(),
                     "gaze_data": gaze.model_dump(),
@@ -577,7 +525,5 @@ def feature_engineering(c_anomalies: Optional[Dict[str, List[List[int]]]], anoma
 
             new_df.append(new_row)
             
-    # Creating the the new dataframe
     new_df = pd.DataFrame(new_df)
     return new_df
-        

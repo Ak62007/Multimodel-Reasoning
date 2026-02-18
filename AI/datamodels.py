@@ -1,71 +1,36 @@
-from src.utils.datamodels import *
+# from src.utils.datamodels import *
 from pydantic import BaseModel, Field
-from typing import Tuple, Literal
+from typing import List, Literal, Optional
 
-class VisualState(BaseModel):
-    status: Literal["baseline", "anomalous"] = Field(
-        description=""
+class VisualAnomalyEvent(BaseModel):
+    """A distinct behavioral event detected within the time range."""
+    timestamp_start: float = Field(..., description="Start time of the specific anomaly event.")
+    timestamp_end: float = Field(..., description="End time of the specific anomaly event.")
+    feature_type: Literal["Blink", "Gaze", "Jaw", "Smile"] = Field(..., description="The facial feature involved.")
+    behavioral_tag: str = Field(..., description="Psychological interpretation (e.g., 'Rapid Blinking', 'Jaw Clench', 'Fixed Stare').")
+    intensity_score: float = Field(..., description="The max absolute rz_score observed during this event (indicates severity).")
+    is_sustained: bool = Field(..., description="True if this was a continuous anomaly (state shift), False if it was a micro-expression.")
+
+class VisualAnalysisReport(BaseModel):
+    """The final summarized report from the Visual Agent."""
+    time_range_start: float
+    time_range_end: float
+    
+    
+    overall_visual_state: Literal["Baseline", "Low_Stress", "High_Stress", "Deceptive_Cluster", "Emotional_Breakthrough"] = Field(
+        ..., description="The holistic classification of the subject's behavior during this window."
     )
-
-class VisualReport(BaseModel):
-    time_range : Tuple[float, float] = Field(
-        ...,
-        description="Time frame (start, end) in secs"
-        )
     
+    detected_anomalies: List[VisualAnomalyEvent] = Field(
+        default_factory=list, 
+        description="List of all specific anomalous events identified. Empty list implies normal behavior."
+    )
     
-
-class AudioReport(BaseModel):
-    time_range : Tuple[float, float] = Field(
-        ...,
-        description="Time frame (start, end) in secs"
-        )
-    
-    report : str = Field(
-        ...,
-        description="Short and Crisp report for the audio data"
-        )
-    
-class VocabReport(BaseModel):
-    time_range : Tuple[float, float] = Field(
-        ...,
-        description="Time frame (start, end) in secs"
-        )
-    
-    report : str = Field(
-        ...,
-        description="Short and Crisp report for the vocabulary data"
-        )
-    
-
-class VisualData(BaseModel):
-    blink_data : Blink = Field(
+    contradiction_context: str = Field(
         ..., 
-        description="User's Blinking data for the given timestamp"
-        )
-    gaze_data : Gaze = Field(
-        ..., 
-        description="User's Gaze data for the given timestamp"
-        )
-    jaw_data : Jaw = Field(
-        ...,
-        description="User's Jaw movement data for the given timestamp"
-        )
-    smile_data : Smile = Field(
-        ...,
-        description="User's Smiling data for the given timestamp"
-        )
+        description="A concise narrative summary explicitly highlighting what *changed*. "
+                    "Example: 'Subject maintained baseline until t=78s, where a sustained high-intensity blink cluster (rz=3.7) occurred, coincident with jaw micro-movements.'"
+    )
     
-class AudioData(BaseModel):
-    loudness_data : LoudnessState = Field(
-        ...,
-        description="User's Loudeness data for the given timestamp"
-        )
-    average_pitch_data : PitchState = Field(
-        ...,
-        description="User's Average Pitch data for the given timestamp"
-        )
-    pitch_std_data : PitchStd = Field(
-        ..., description="User's Pitch standard deviation for the given timestamp"
-        )
+
     
