@@ -135,60 +135,66 @@ class VocabularyAnalysisReport(BaseModel):
 
 
 class CrossModalInsight(BaseModel):
-    """
-    A specific instance where behavior, voice, and words interact meaningfully.
-    """
-    timestamp_start: float = Field(..., description="Start time of this specific insight.")
-    timestamp_end: float = Field(..., description="End time of this specific insight.")
+    """A specific instance where behavior, voice, and words interact meaningfully."""
     
-    # Context: What was happening?
-    spoken_content_snippet: str = Field(
+    timestamp_start: float
+    timestamp_end: float
+    
+    spoken_content: str = Field(
         ..., 
-        description="The specific text segment spoken during this time range (including [*] markers)."
-    )
-    topic_context: str = Field(
-        ..., 
-        description="Brief tag of the topic being discussed (e.g., 'Technical Explanation', 'Personal Intro', 'Answering a difficult question')."
+        description="A short quote of what was being said (e.g., 'I completed the ML course [*]')."
     )
     
-    # Evidence: What did we see/hear?
-    active_anomalies: List[str] = Field(
+    anomalies_detected: List[str] = Field(
         ..., 
-        description="List of specific anomalies active here (e.g., ['Visual: Micro-frown', 'Audio: Pitch Drop', 'Verbal: Stutter'])."
+        description="Brief tags of what happened (e.g., ['Visual: Rapid Blink', 'Audio: Pitch Drop', 'Verbal: Stutter'])."
     )
     
-    # Analysis: What does it mean?
-    observation_type: str = Field(
+    behavioral_analysis: str = Field(
         ..., 
-        description="Short category for the behavior. Examples: 'Feigned Enthusiasm', 'Cognitive Overload', 'Fabrication Leakage', 'Defensive Posturing', 'Honest Uncertainty'."
+        description="One punchy sentence explaining the 'Tell'. Example: 'Subject's pitch dropped and blinking spiked while discussing their ML certification, indicating high anxiety or fabrication regarding this credential.'"
     )
     
-    detailed_analysis: str = Field(
+    suspicion_level: Literal["Low", "Medium", "High"] = Field(
         ..., 
-        description="The core reasoning. Explain the link between the text and the behavior. "
-                    "Example: 'While claiming to be very interested in the field, the subject's pitch flattened and they broke eye contact, contradicting the verbal sentiment.'"
-    )
-    
-    suspicion_level: float = Field(
-        ..., 
-        ge=0.0, le=10.0, 
-        description="A score from 0-10 indicating how likely this indicates deception or negative concealement. 0=Truthful/Normal, 10=High Certainty Deception."
+        description="How likely is this a sign of deception, masking, or severe stress?"
     )
 
 class IntegratedBehavioralReport(BaseModel):
     """The Master Report for the time window."""
+    
     time_range_start: float
     time_range_end: float
     
-    # The Narrative Verdict
+    overall_credibility: Literal[
+        "High Credibility (Authentic)", 
+        "Moderate (Nervous/Recall)", 
+        "Low Credibility (Masking/Deceptive)"
+    ] = Field(..., description="The overall verdict for this specific time block.")
+    
     executive_summary: str = Field(
         ..., 
-        description="A high-level psychological profile of the subject during this segment. "
-                    "Discuss their baseline demeanor, how they handled pressure, and their overall credibility."
+        description="Maximum 2 sentences summarizing their behavior and how they handled the topics discussed."
     )
     
-    # Specific Findings
     key_insights: List[CrossModalInsight] = Field(
         default_factory=list, 
-        description="Chronological list of significant behavioral insights found in this window."
+        description="Chronological list of the specific 'Tells' found. Leave empty if completely baseline/normal."
+    )
+    
+class FinalReport(BaseModel):
+    executive_summary: str = Field(
+        ...,
+    )
+    
+    behavioral_strengths: str = Field(
+        ...,
+    )
+    
+    vulnerabilities_and_triggers: str = Field(
+        ...,
+    )
+    
+    areas_for_improvement: str = Field(
+        ...,
     )
