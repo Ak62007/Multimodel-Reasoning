@@ -136,7 +136,7 @@ This file is co-maintained:
 ## M5 — Backend API
 
 - Completed: 2026-06-09T16:52:57Z
-- Commit: <agent: fills with `git rev-parse HEAD` after commit>
+- Commit: 5a09aa854b8ef8dad20f61a847cf5981393e0a23
 - Tag: m5-done
 - Session ID (if known, else "unknown"): unknown
 
