@@ -278,3 +278,52 @@ real end-to-end validation run against `data/uploads/Interview_2.mp4`:
   CLI all consume `agents/` directly); (2) keeping them separate lets
   M5 wire the backend's `Settings` to feed the agents' env without
   introducing an import-time circular dependency.
+
+## M5 — Backend API
+
+- **SQLite engine is process-cached by `db_path`.** Tests swap `db_path` via
+  `monkeypatch.setenv("DB_PATH", ...)` then `reset_engine_cache()`. The
+  `check_same_thread=False` flag is required because FastAPI's
+  BackgroundTasks runs on a different thread than the request handler.
+
+- **Test-mode upload (`MMR_TEST_MODE=1`) accepts a pre-computed `.parquet`**
+  in addition to videos. The JobRunner detects this via `Job.is_test_input`
+  and skips the entire pipeline (stages 1–9), going straight to the
+  agentic layer. This is what makes the API test suite deterministic and
+  fast (sub-second per lifecycle). Without it, every API test would
+  require a real video + mediapipe model + AssemblyAI key.
+
+- **`load_df_parquet_safe` gained a sidecar-less fallback.** The
+  authoritative `.schema.json` sidecar lists which columns are
+  JSON-encoded; when it's missing (e.g. a test upload of just the
+  `.parquet` bytes), every object/string column is run through a JSON
+  auto-decoder. Decode errors keep the original value, so non-JSON
+  columns are unaffected. Updated `test_parquet_io.py` to assert the new
+  contract.
+
+- **`/api/jobs/{id}/master_df` uses `response_model=None`** because the
+  endpoint returns either `JSONResponse` (json format) or `FileResponse`
+  (parquet format). FastAPI's Pydantic introspection can't reason about
+  that union; explicit None disables response-model generation.
+
+- **Progress budget: pipeline 0–78%, agents 78–95%, finalising → 100%.**
+  Hardcoded factor `frac * 0.78` in the pipeline progress callback so the
+  frontend's progress bar advances smoothly through all 11 stages. The
+  exact split is a judgment call — pipeline dominates wall-clock time on
+  real videos, but the agent chain is the visible "almost done" phase.
+
+- **`BackgroundTasks` instead of Celery/RQ/Arq for v1.** Spec §4 mandates
+  it. The `run_job_blocking` function is process-local, but `_set_stage`
+  / `_set_status` use their own session scopes so the FastAPI worker
+  thread can crash without leaving rows in inconsistent states. Each
+  status update is a self-contained commit. When swap to Celery happens
+  (M-future), `run_job_blocking` is the only function to wrap as a task.
+
+- **CORS origins default to Vite dev (`http://localhost:5173`,
+  `:5174`, `127.0.0.1:5173`).** Production deploy will need to override
+  via `CORS_ORIGINS`.
+
+- **Job log capture via `configure_logging(log_file=paths.log_file,
+  force=True)`** at the top of `run_job_blocking`. The root logger gets a
+  file handler pointed at the job's log path. The frontend's error mode
+  uses this through `/api/jobs/{id}/logs?tail=N`.

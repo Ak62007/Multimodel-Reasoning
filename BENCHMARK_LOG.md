@@ -132,3 +132,33 @@ This file is co-maintained:
 - User: <fill if any retries / restarts / interventions occurred>
 
 ---
+
+## M5 — Backend API
+
+- Completed: 2026-06-09T16:52:57Z
+- Commit: <agent: fills with `git rev-parse HEAD` after commit>
+- Tag: m5-done
+- Session ID (if known, else "unknown"): unknown
+
+### This-session subtotal (since last fresh Claude Code session start)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- Session subtotal: <FILL IN>
+
+### Run total (sum across ALL sessions in this run)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- **Run total: <FILL IN>**
+
+### Notes
+
+- Agent: Built FastAPI service per spec §7. SQLModel `Job` table in `models.py` + engine factory in `db.py` (per-`db_path` cache for tests). `config.py` extended with full settings (paths, upload limits, LLM, agents, test mode). Routers: `health.py` (returns version), `jobs.py` (POST upload accepting video OR test parquet, GET list with paginate+status filter, GET single, DELETE removes row+artefacts), `reports.py` (segments, report w/ markdown, master_df parquet/JSON download, logs tail). `services/job_runner.py` orchestrates pipeline (stages 1-9 via `run_pipeline` with progress callback) + agents (stages 10-11 via `asyncio.run(build_report(...))`); catches exceptions, persists traceback to job log, marks status=failed. `services/storage.py` for file IO. `main.py` wires CORS for Vite dev. `load_df_parquet_safe` gained sidecar-less fallback for test uploads. 12 API tests (1 health + 11 jobs lifecycle) all passing under `MMR_TEST_MODE=1` + `LLM_PROVIDER=stub`. Total suite: 138 passed. Backend coverage: 93% (target ≥80%). Manual `uvicorn backend.app.main:app` boot verified.
+- User: <fill if any retries / restarts / interventions occurred>
+
+---

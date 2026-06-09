@@ -122,13 +122,33 @@ def test_committed_fixture_contains_engineered_anomalies() -> None:
     assert loud_anom.sum() >= 3  # the [22.0, 22.5, 23.0, 23.5] cluster
 
 
-def test_load_missing_schema_sidecar_raises(tmp_path: Path) -> None:
+def test_load_missing_schema_sidecar_falls_back_to_auto_decode(tmp_path: Path) -> None:
+    """Without the sidecar, the loader should still produce a usable DataFrame
+    by auto-decoding object/string columns whose values look like JSON. The
+    backend's test-mode upload relies on this fallback."""
     p = tmp_path / "no_sidecar.parquet"
     df = pd.DataFrame({"x": [1, 2, 3]})
-    # Write a parquet without our schema sidecar.
     df.to_parquet(p, engine="pyarrow")
-    with pytest.raises(FileNotFoundError):
-        load_df_parquet_safe(p)
+    out = load_df_parquet_safe(p)
+    pd.testing.assert_frame_equal(out, df)
+
+
+def test_load_without_sidecar_decodes_json_object_columns(tmp_path: Path) -> None:
+    """Object columns with JSON-string values should round-trip back to dicts
+    even without a sidecar."""
+    import json as _json
+
+    p = tmp_path / "json_no_sidecar.parquet"
+    df = pd.DataFrame(
+        {
+            "Time": [0.0, 0.5],
+            "blob": [_json.dumps({"a": 1}), _json.dumps({"a": 2})],
+        }
+    )
+    df.to_parquet(p, engine="pyarrow")
+    out = load_df_parquet_safe(p)
+    assert out.loc[0, "blob"] == {"a": 1}
+    assert out.loc[1, "blob"] == {"a": 2}
 
 
 def test_round_trip_numpy_array_in_object_column(tmp_path: Path) -> None:

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from pipeline import __version__ as pipeline_version
+from backend.app.config import Settings, get_settings
+from backend.app.schemas import HealthResponse
 
 router = APIRouter()
 
 
-@router.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "version": pipeline_version}
+@router.get("/health", response_model=HealthResponse)
+def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
+    return HealthResponse(status="ok", version=settings.app_version)

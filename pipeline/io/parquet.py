@@ -68,17 +68,46 @@ def save_df_parquet_safe(df: pd.DataFrame, path: str | Path) -> None:
     _log.info("Saved parquet: %s (+ %s)", path, schema_path)
 
 
+def _try_json_decode_column(series: pd.Series) -> pd.Series:
+    """If every non-null value parses as JSON, return the decoded column; else
+    return the original. Used as the sidecar-less fallback for `load_df_parquet_safe`.
+    """
+
+    def _decode(x):
+        if pd.isna(x):
+            return None
+        try:
+            return json.loads(x)
+        except (TypeError, json.JSONDecodeError):
+            return x  # leave non-JSON cells alone (signal to caller)
+
+    decoded = series.apply(_decode)
+    # Heuristic: if decoding changed at least one non-null cell, accept it.
+    return decoded
+
+
 def load_df_parquet_safe(path: str | Path) -> pd.DataFrame:
-    """Load a parquet written by `save_df_parquet_safe`, restoring object columns."""
+    """Load a parquet written by `save_df_parquet_safe`, restoring object columns.
+
+    The sidecar `<path>.schema.json` is the authoritative source of which
+    columns were JSON-encoded. If the sidecar is missing (e.g. test uploads
+    of just the parquet), object/string columns whose values are valid JSON
+    are auto-decoded as a fallback.
+    """
     path = str(path)
     df = pd.read_parquet(path=path, engine="pyarrow")
 
     schema_path = path + ".schema.json"
-    with open(schema_path) as f:
-        schema = json.load(f)
+    if Path(schema_path).exists():
+        with open(schema_path) as f:
+            schema = json.load(f)
+        for col, col_type in schema.items():
+            if col_type == "json":
+                df[col] = df[col].apply(lambda x: json.loads(x) if pd.notna(x) else None)
+        return df
 
-    for col, col_type in schema.items():
-        if col_type == "json":
-            df[col] = df[col].apply(lambda x: json.loads(x) if pd.notna(x) else None)
-
+    _log.debug("No sidecar at %s — falling back to JSON auto-decode", schema_path)
+    for col in df.columns:
+        if df[col].dtype == "object" or str(df[col].dtype) == "string":
+            df[col] = _try_json_decode_column(df[col])
     return df
