@@ -72,7 +72,8 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["B", "F401"]
+"tests/**/*.py" = ["B", "F401", "RUF003"]
+"tests/fixtures/*.py" = ["B", "F401", "RUF003"]
 "pipeline/features/transforms.py" = ["E741"]  # legacy single-letter vars
 # Prompt strings intentionally contain trailing whitespace for formatting;
 # these are revised wholesale in M4 — silence whitespace lints meanwhile.

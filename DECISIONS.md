@@ -151,3 +151,51 @@ real end-to-end validation run against `data/uploads/Interview_2.mp4`:
   anomalies detected, speaker labels match utterance distribution
   (533 B / 87 A / 12 None), filler detection fired on rows that genuinely
   contain `[*]` disfluencies. Saved log: `data/processed/m2-validate-v2-run.log`.
+
+## M3 — Pipeline tests
+
+- **Committed fixture: `tests/fixtures/tiny_master_df.parquet`** (60 rows ×
+  12 cols, ~30 s of synthetic data with two engineered anomalous windows
+  at `[5.0, 5.5, 6.0]` for blink and `[22.0, 22.5, 23.0, 23.5]` for
+  audio). Companion `sample_anomaly_dicts.json` carries the matching
+  `anomalies` / `c_anomalies` shapes. Both regenerable with
+  `PYTHONPATH=. uv run python tests/fixtures/_generate_tiny_master_df.py`.
+
+- **Coverage scope.** The spec requires coverage in `pipeline/features/`,
+  `pipeline/anomaly/`, `pipeline/io/`. `pipeline/orchestrator.py`,
+  `pipeline/_logging.py`, `pipeline/utils.py`, `pipeline/merge.py`,
+  `pipeline/audio/*`, and `pipeline/video/*` are intentionally only
+  partially covered — they wrap external services (mediapipe, librosa,
+  AssemblyAI, whisper) and are exercised via the M2 real-video validation
+  run + the M2 structural tests (orchestrator pieces, merge contract).
+  Treating them with the same target would force broad mocking that adds
+  fragility without proving anything new.
+
+- **`feature_engineering` covered via integration test, not micro-tests.**
+  Its branches are tightly coupled (250+ lines, two modes, 10+ feature
+  columns, both Pydantic instantiation and dict-shaped fallback). Cleaner
+  to drive the whole function with a synthetic raw dataframe + sample
+  anomaly dicts and assert on the output shape than to wrap each of its
+  ~30 conditional branches.
+
+- **`compute_speaker_median_pitch` covered via monkeypatched librosa.**
+  Real audio fixtures cost megabytes; the function's logic (mask voiced
+  pitch across multiple speaker segments, take overall median, round to
+  2 dp) is fully exercised by faking `librosa.load` / `librosa.pyin` /
+  `librosa.times_like`.
+
+- **`pipeline/features/transforms.py` is still in the mypy override
+  exclusion** even though tests now cover ~99 % of it. The remaining
+  type problems are about the legacy `Optional`+`dict` plumbing, not
+  about the test surface; the right fix is the refactor planned during
+  the agentic-layer work (M4) where the function's contract gets pinned
+  down by the agent input adapter.
+
+- **Coverage totals (committed):** `pipeline/features/` = 98.75 %,
+  `pipeline/anomaly/` = 93.86 %, `pipeline/io/` = 96.67 % — all targets
+  exceeded with margin. Reported via
+  `uv run pytest --cov=pipeline --cov-report=term`.
+
+- **Per-file ignore for `RUF003` in tests.** Test/fixture file comments
+  use the en-dash (`–`) and multiplication sign (`×`) for readability
+  (e.g. "60 rows × 12 cols"). These are runtime-irrelevant.

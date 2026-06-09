@@ -1,0 +1,60 @@
+{
+  "anomalies": {
+    "blink_intensity_smooth_rz": [
+      5.0,
+      5.5,
+      6.0
+    ],
+    "gaze_magnitude_smooth_rz": [],
+    "jaw_magnitude_smooth_rz": [],
+    "smile_intensity_smooth_rz": [],
+    "loudness_db_smooth_rz": [
+      22.0,
+      22.5,
+      23.0,
+      23.5
+    ],
+    "pitch_relative_st_smooth_rz": [
+      22.0,
+      22.5,
+      23.0,
+      23.5
+    ],
+    "pitch_expressiveness_st_smooth_rz": [],
+    "wps_smooth_rz": [],
+    "filler_percentage": [],
+    "pause_percent_pr": []
+  },
+  "c_anomalies": {
+    "blink_intensity_smooth_rz": [
+      [
+        5.0,
+        5.5,
+        6.0
+      ]
+    ],
+    "gaze_magnitude_smooth_rz": [],
+    "jaw_magnitude_smooth_rz": [],
+    "smile_intensity_smooth_rz": [],
+    "loudness_db_smooth_rz": [
+      [
+        22.0,
+        22.5,
+        23.0,
+        23.5
+      ]
+    ],
+    "pitch_relative_st_smooth_rz": [
+      [
+        22.0,
+        22.5,
+        23.0,
+        23.5
+      ]
+    ],
+    "pitch_expressiveness_st_smooth_rz": [],
+    "wps_smooth_rz": [],
+    "filler_percentage": [],
+    "pause_percent_pr": []
+  }
+}

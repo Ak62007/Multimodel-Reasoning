@@ -68,7 +68,37 @@ This file is co-maintained:
 
 ### Notes
 
-- Agent: Renamed `audio_rms(volumn)`→`audio_rms`, `audio_pitch_var(expressiveness)`→`audio_pitch_var` (producer + consumer migrated in same commit). Replaced 12 `print()` calls with `logging`+`rich`. Added `pipeline/_logging.py`, `pipeline/anomaly/smoothing.py`, `pipeline/features/linguistic.py` (wps/filler/pause), `pipeline/merge.py`. Wired `pipeline/orchestrator.py` with 9 stages matching spec §7, `progress_cb` callback for backend, CLI entrypoint `python -m pipeline.orchestrator`. AssemblyAI ms→sec normalization moved to producer boundary. 14 new structural tests in `test_orchestrator_pieces.py` cover merge / smoothing / RZ / RRCF wiring / categorical anomaly logic. Full video→parquet acceptance run deferred — needs real interview video + API keys; documented in DECISIONS.md.
+- Agent: Renamed `audio_rms(volumn)`→`audio_rms`, `audio_pitch_var(expressiveness)`→`audio_pitch_var` (producer + consumer migrated in same commit). Replaced 12 `print()` calls with `logging`+`rich`. Added `pipeline/_logging.py`, `pipeline/anomaly/smoothing.py`, `pipeline/features/linguistic.py` (wps/filler/pause), `pipeline/merge.py`. Wired `pipeline/orchestrator.py` with 9 stages matching spec §7, `progress_cb` callback for backend, CLI entrypoint `python -m pipeline.orchestrator`. AssemblyAI ms→sec normalization moved to producer boundary. 14 new structural tests in `test_orchestrator_pieces.py` cover merge / smoothing / RZ / RRCF wiring / categorical anomaly logic. Full video→parquet acceptance also ran successfully against `data/uploads/Interview_2.mp4` (632-row master parquet, 34 blink anomalies detected); two post-tag fixes for whisper-ffmpeg dependency and dotenv autoload landed in commit 271bb13.
+- User: <fill if any retries / restarts / interventions occurred>
+
+---
+
+## M3 — Pipeline tests
+
+- Completed: 2026-06-09T16:14:27Z
+- Commit: <agent: fills with `git rev-parse HEAD` after commit>
+- Tag: m3-done
+- Session ID (if known, else "unknown"): unknown
+
+### This-session subtotal (since last fresh Claude Code session start)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- Session subtotal: <FILL IN>
+
+### Run total (sum across ALL sessions in this run)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- **Run total: <FILL IN>**
+
+### Notes
+
+- Agent: Generated `tests/fixtures/tiny_master_df.parquet` (60 rows × 12 cols, two engineered anomalous windows) and `sample_anomaly_dicts.json` via committed one-shot script. Wrote `test_schemas.py` (13 tests across all 10 Pydantic per-frame models), `test_features.py` (27 tests across blink/gaze/jaw/smile/audio_metrics + level helpers), `test_anomaly.py` (15 tests for RRCF, MAD threshold, range grouping, smoothing+RZ), `test_parquet_io.py` (8 tests for round-trip + sidecar schema + fixture loading), `test_feature_engineering.py` (5 integration tests on synthetic input incl. monkeypatched librosa), `test_rrcf_internals.py`, `test_paths.py`. 106 tests passing. Coverage: `pipeline/features/` 98.75%, `pipeline/anomaly/` 93.86%, `pipeline/io/` 96.67% — all spec §10 targets exceeded.
 - User: <fill if any retries / restarts / interventions occurred>
 
 ---
