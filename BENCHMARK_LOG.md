@@ -226,7 +226,7 @@ This file is co-maintained:
 ## M8 — Docs + Polish
 
 - Completed: 2026-06-09T18:07:59Z
-- Commit: <agent: fills with `git rev-parse HEAD` after commit>
+- Commit: 72dbf06a42577bc7aef758d12206c21ff31361a1
 - Tag: m8-done
 - Session ID (if known, else "unknown"): unknown
 
