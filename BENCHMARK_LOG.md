@@ -196,7 +196,7 @@ This file is co-maintained:
 ## M7 — Docker + CI
 
 - Completed: 2026-06-09T17:51:45Z
-- Commit: <agent: fills with `git rev-parse HEAD` after commit>
+- Commit: 1dd30849d6a5127e82a3c94749c3a58a673569b8
 - Tag: m7-done
 - Session ID (if known, else "unknown"): unknown
 
