@@ -162,3 +162,33 @@ This file is co-maintained:
 - User: <fill if any retries / restarts / interventions occurred>
 
 ---
+
+## M6 — Frontend
+
+- Completed: 2026-06-09T17:17:02Z
+- Commit: <agent: fills with `git rev-parse HEAD` after commit>
+- Tag: m6-done
+- Session ID (if known, else "unknown"): unknown
+
+### This-session subtotal (since last fresh Claude Code session start)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- Session subtotal: <FILL IN>
+
+### Run total (sum across ALL sessions in this run)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- **Run total: <FILL IN>**
+
+### Notes
+
+- Agent: Built React 18 + Vite + TS + Tailwind frontend per spec §8. Three screens via React Router (`/`, `/analyzing/:id`, `/report/:id`). Upload (drag-drop + advanced speaker_label + RecentAnalyses), Analyzing (TanStack Query 2s polling, StageChecklist with ◯/◐/✓ icons, friendly stage labels, progress bar, elapsed time, cancel), Report (Executive Summary + stat chips, Cross-Modal Patterns w/ ToneBadge + PatternTypeBadge + SignificancePill + modality pills + spoken_content quote, Final Conclusion four markdown sub-sections, Download as Markdown, no-patterns fallback, failed-job error mode w/ log tail via `/logs?tail=20`). `types/api.ts` hand-written to match Pydantic. `lib/storage.ts` for localStorage active + recent (5 max). `lib/time.ts` for MM:SS / elapsed. CORS configured via vite proxy. 9 vitest screen tests via mocked `fetch` covering all spec §10 frontend requirements (file select → submit transition, stage label + progress + checklist state, three pattern type badges with correct colors, no-patterns fallback, error mode w/ log tail, Download as Markdown trigger). Production build via `tsc --noEmit && vite build` ✓ (374kB gzip 116kB). Lint clean. Vite dev boots cleanly. Total: 138 backend + 9 frontend = 147 tests passing.
+- User: <fill if any retries / restarts / interventions occurred>
+
+---

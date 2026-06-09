@@ -327,3 +327,55 @@ real end-to-end validation run against `data/uploads/Interview_2.mp4`:
   force=True)`** at the top of `run_job_blocking`. The root logger gets a
   file handler pointed at the job's log path. The frontend's error mode
   uses this through `/api/jobs/{id}/logs?tail=N`.
+
+## M6 — Frontend
+
+- **Single-route app, three screens via React Router.** Routes: `/`,
+  `/analyzing/:id`, `/report/:id`. The state machine the spec describes
+  ("UI is a single state machine over the active job") maps cleanly to
+  three URLs; localStorage tracks the active job id so a refresh resumes
+  the same flow.
+
+- **TanStack Query polling on AnalyzingScreen.** `refetchInterval` reads
+  the cached job's status and returns `false` once it's terminal — this
+  is cleaner than a setInterval+useEffect tangle. 2 second cadence per
+  spec §8.1.
+
+- **Stage labels + canonical order live in `types/api.ts`.** Keeping the
+  friendly-label map and `ALL_STAGES` ordering in one place means a new
+  pipeline stage only needs one edit; the checklist uses index
+  comparison to decide pending/active/done.
+
+- **`max-w-report` Tailwind extension (`768px`)** matches spec §8.4's
+  "executive briefing memo" max width.
+
+- **Inter font loaded from rsms.me** so typography matches across systems
+  without bundling a font file. Falls back to system fonts.
+
+- **No data viz library.** Spec §8.4 forbids Recharts/D3/Chart.js;
+  patterns render as inline rows with pill tags. Optional timeline bar
+  not implemented (spec allows omission).
+
+- **Recent analyses dropdown is localStorage-backed only.** No API call —
+  keeps Screen 1 fast and matches the "no dashboard" spirit. Hidden
+  when empty.
+
+- **Hand-written `types/api.ts` instead of openapi-generated.** Marginal
+  value at this size; hand-writing forces UI authors to think about the
+  exact shape the frontend consumes. Mismatches surface as build errors.
+
+- **`vite.config.ts` proxies `/api` to localhost:8000** so dev and prod
+  use the same path. `VITE_API_BASE_URL` overrides the proxy target for
+  staging deploys (M8).
+
+- **Tests use mocked `fetch`, not MSW.** MSW would be the production
+  choice for a larger app; nine screen tests with hand-rolled fetch
+  mocks in `tests/test-utils.tsx` give the same guarantees here with
+  less setup. Each test installs its own restore() cleanup.
+
+- **`URL.createObjectURL` / `revokeObjectURL` stubbed in `tests/setup.ts`**
+  because jsdom doesn't implement them — required for the "Download as
+  Markdown" test on ReportScreen.
+
+- **React Router v7 future-flag warnings are not addressed.** Advisory,
+  don't affect behavior on v6; staying on v6 stable for now.
