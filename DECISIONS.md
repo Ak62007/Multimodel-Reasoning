@@ -447,3 +447,47 @@ real end-to-end validation run against `data/uploads/Interview_2.mp4`:
   `/api/health` directly on `:8000` AND through the nginx proxy at
   `:5173/api/health` (the single-origin production path). Confirmed
   with curl during M7 acceptance.
+
+## M8 — Docs + Polish
+
+- **`README.md` is fully populated.** Two-paragraph product overview,
+  Docker quickstart (with MediaPipe model download step), local-dev
+  quickstart via `make dev`, ASCII architecture diagram, per-directory
+  module map, test commands, configuration table, known limitations,
+  troubleshooting section, doc links. Replaces the placeholder
+  scaffold from M1.
+
+- **`DEPLOYMENT.md` covers two paths: VPS via `docker compose` and
+  Fly.io.** Per spec §12 ("pick one of: Fly.io, Railway, generic
+  VPS") I covered the VPS path as the recommended one and Fly.io as
+  the secondary because Fly's free-tier shape works well for this
+  app's two-container topology. Skipped Railway because its Docker
+  story is identical to the VPS path with a different control plane,
+  which would have padded the doc without adding value.
+
+- **Env-var checklist in `DEPLOYMENT.md`** annotates each var with
+  Required / Warning (will work but probably wrong default) / Optional.
+  `CORS_ORIGINS` and `MMR_TEST_MODE` are the easiest production
+  mis-configurations to make; they get Warning status.
+
+- **Persistent volume sizing recommendation: 20 GB initially.** Based
+  on ~500 MB per 10-min 1080p interview after compression + room for
+  history. Documented in DEPLOYMENT.md alongside a reaper script
+  example for jobs older than 30 days.
+
+- **Definition of Done audit (spec §14) passes every item.**
+  Repo layout ✓, all 9 API endpoints ✓ (verified by grep on routers),
+  agentic layer callable without a notebook ✓ (`build_report` in
+  `agents/orchestrator.py`), coverage targets ✓ (pipeline/features
+  98.75%, pipeline/anomaly 93.86%, pipeline/io 92%, backend/app 93%),
+  CI green (locally — full push validation lands when this branch
+  hits CI), `docker compose up` ✓ (M7), README ✓, DEPLOYMENT.md ✓,
+  DECISIONS.md ✓, notebooks preserved in `legacy_notebooks/` (10
+  ipynb files), `.env.example` lists all 18 env vars, real-Groq
+  smoke test passed in M4.
+
+- **No M8 code changes.** Final `ruff check` / `ruff format --check`
+  / `mypy` / `pytest` / frontend `typecheck` + `lint` + `vitest` +
+  `vite build` all pass without modification — the milestones built
+  cleanly on each other. The only M8 deliverables are documentation
+  files.

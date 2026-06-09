@@ -222,3 +222,33 @@ This file is co-maintained:
 - User: <fill if any retries / restarts / interventions occurred>
 
 ---
+
+## M8 — Docs + Polish
+
+- Completed: 2026-06-09T18:07:59Z
+- Commit: <agent: fills with `git rev-parse HEAD` after commit>
+- Tag: m8-done
+- Session ID (if known, else "unknown"): unknown
+
+### This-session subtotal (since last fresh Claude Code session start)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- Session subtotal: <FILL IN>
+
+### Run total (sum across ALL sessions in this run)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- **Run total: <FILL IN>**
+
+### Notes
+
+- Agent: Replaced `README.md` placeholder with a complete document — product overview, Docker quickstart (incl. MediaPipe model download step), local-dev quickstart via `make dev`, ASCII architecture diagram, per-directory module map, test commands, configuration table, known limitations, troubleshooting, doc links. Wrote `DEPLOYMENT.md` covering VPS via `docker compose` (recommended) + Fly.io with env-var checklist, persistent volume sizing (20GB initial), HTTPS via Caddy, backups via rsync, secrets rotation, operational notes. No M8 code changes. Definition of Done audit (spec §14) passes every item: repo layout, all 9 API endpoints, agentic layer callable, coverage targets all exceeded (features 98.75 / anomaly 93.86 / io 92 / backend 93%), `docker compose up` works (M7), notebooks preserved in `legacy_notebooks/` (10 ipynb), 18 env vars documented in `.env.example`, real-Groq smoke test ran in M4. Final state: ruff clean, ruff format clean, mypy clean (53 files), pytest 138 backend + 9 frontend = 147 passing, frontend typecheck + lint + build all clean.
+- User: <fill if any retries / restarts / interventions occurred>
+
+---
