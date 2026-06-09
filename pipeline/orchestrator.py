@@ -357,12 +357,21 @@ def _parse_argv(argv: list[str]) -> tuple[Path, PipelineConfig]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Best-effort `.env` autoload for ad-hoc CLI use. The backend (M5) loads
+    # config via pydantic-settings instead and does not depend on this.
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
+
     argv = argv if argv is not None else sys.argv[1:]
     video_path, config = _parse_argv(argv)
 
     configure_logging(level=logging.INFO)
     result = run_pipeline(video_path, config)
-    print(result.master_df_path)
+    sys.stdout.write(str(result.master_df_path) + "\n")
     return 0
 
 

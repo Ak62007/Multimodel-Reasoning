@@ -123,3 +123,31 @@ left a detail genuinely ambiguous (not just unspecified). Spec wins ties.
   package-private. Public callers should use a regular `logging.getLogger`
   in their own modules; `configure_logging` is invoked once by the
   orchestrator CLI and once by the backend job runner.
+
+### M2 post-tag fixes (after `m2-done` tag, before `m3-done`)
+
+The `m2-done` tag remains at the original M2 work commit per the spec's
+"do not rewrite tags" rule. These follow-up fixes were discovered during the
+real end-to-end validation run against `data/uploads/Interview_2.mp4`:
+
+- **`pipeline/audio/transcribe_whisper.py` bypasses `wp.load_audio`.** The
+  original `whisper-timestamped` call shells out to `ffmpeg` on PATH, which
+  isn't a moviepy or any other dependency we already require — the user can
+  trivially miss it. Switched to `librosa.load(audio_path, sr=16000, mono=True)`
+  + `astype(float32)` and pass the waveform directly to
+  `transcribe_timestamped`. Same numerical contract whisper expects, no
+  extra system dependency.
+
+- **`pipeline/orchestrator.main()` auto-loads `.env`.** Originally the CLI
+  read raw `os.environ`, so `python -m pipeline.orchestrator …` wouldn't see
+  `ASSEMBLYAI_API_KEY` unless the user had pre-exported it. Added a
+  best-effort `dotenv.load_dotenv()` at the top of `main()` (no-op if
+  python-dotenv isn't installed). The backend will use pydantic-settings
+  instead, which has its own `.env` loading, so this is CLI-only convenience.
+
+- **Validation result.** Ran on a real 10:31 interview at 1700×956. Pipeline
+  produced `data/processed/m2-validate-v2/master.parquet` (632 rows, 12 cols)
+  with all Pydantic-dict columns populated and schema-correct. 34 blink
+  anomalies detected, speaker labels match utterance distribution
+  (533 B / 87 A / 12 None), filler detection fired on rows that genuinely
+  contain `[*]` disfluencies. Saved log: `data/processed/m2-validate-v2-run.log`.
