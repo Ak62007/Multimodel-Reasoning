@@ -1,11 +1,13 @@
+import logging
 import math
 from pathlib import Path
 
-# import numpy as np
 import mediapipe as mp
 import pandas as pd
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+
+_log = logging.getLogger(__name__)
 
 
 def get_coordinates(landmarks: list, idx: int) -> tuple:
@@ -100,8 +102,8 @@ def face_analysis_data(model_path, images_path) -> pd.DataFrame:
     folder = Path(images_path)
 
     if not folder.exists():
-        print(f"Folder {images_path} does not exist")
-        return
+        _log.error("Frames folder does not exist: %s", images_path)
+        return pd.DataFrame()
 
     # This just let's mediapipe know where is the .task(model) weights of the model
     base_options = python.BaseOptions(model_asset_path=model_path)
@@ -126,7 +128,7 @@ def face_analysis_data(model_path, images_path) -> pd.DataFrame:
         results = detector.detect(image)
 
         if not results.face_landmarks or len(results.face_landmarks) == 0:
-            print(f"no face detected in the frame : {filepath.as_posix()}")
+            _log.debug("no face detected in frame: %s", filepath.as_posix())
             row = {
                 "Time": timing,
                 # 'h_ratio': np.nan,
@@ -155,7 +157,7 @@ def face_analysis_data(model_path, images_path) -> pd.DataFrame:
             fa_data.append(row)
 
     # Let's build the dataframe
-    fa_data = pd.DataFrame(fa_data)
-    fa_data = fa_data.sort_values("Time").reset_index(drop=True)
+    fa_df = pd.DataFrame(fa_data)
+    fa_df = fa_df.sort_values("Time").reset_index(drop=True)
 
-    return fa_data
+    return fa_df

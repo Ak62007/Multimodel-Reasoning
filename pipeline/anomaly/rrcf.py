@@ -1,4 +1,4 @@
-# import matplotlib.pyplot as plt
+import logging
 from typing import Literal
 
 import numpy as np
@@ -6,7 +6,7 @@ import pandas as pd
 from pysad.models import RobustRandomCutForest
 from pysad.utils import ArrayStreamer
 
-# from sklearn.preprocessing import StandardScaler
+_log = logging.getLogger(__name__)
 
 MIN = 0.5
 MAX = 2.0
@@ -115,8 +115,7 @@ def run_rrcf(features: np.ndarray, num_trees: int = 40, tree_size: int = 256, sh
         score = model.fit_score_partial(X)
         anomaly_scores.append(score)
 
-    print(f"Processed {len(anomaly_scores)} points")
-
+    _log.debug("RRCF scored %d points", len(anomaly_scores))
     return anomaly_scores
 
 

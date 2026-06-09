@@ -413,9 +413,9 @@ def feature_engineering(
             # Audio transformed data
             if df.iloc[i]["speaker"] == speaker:
                 results = audio_metrics_from_raw(
-                    audio_rms=df.iloc[i]["audio_rms(volumn)"],
+                    audio_rms=df.iloc[i]["audio_rms"],
                     pitch_avg_hz=df.iloc[i]["audio_pitch_avg"],
-                    pitch_var_hz2=df.iloc[i]["audio_pitch_var(expressiveness)"],
+                    pitch_var_hz2=df.iloc[i]["audio_pitch_var"],
                     speaker_median_pitch_hz=speaker_median_pitch,
                 )
 

@@ -42,3 +42,33 @@ This file is co-maintained:
 - User: <fill if any retries / restarts / interventions occurred>
 
 ---
+
+## M2 — Pipeline orchestrator + cleanup
+
+- Completed: 2026-06-09T15:18:51Z
+- Commit: <agent: fills with `git rev-parse HEAD` after commit>
+- Tag: m2-done
+- Session ID (if known, else "unknown"): unknown
+
+### This-session subtotal (since last fresh Claude Code session start)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- Session subtotal: <FILL IN>
+
+### Run total (sum across ALL sessions in this run)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- **Run total: <FILL IN>**
+
+### Notes
+
+- Agent: Renamed `audio_rms(volumn)`→`audio_rms`, `audio_pitch_var(expressiveness)`→`audio_pitch_var` (producer + consumer migrated in same commit). Replaced 12 `print()` calls with `logging`+`rich`. Added `pipeline/_logging.py`, `pipeline/anomaly/smoothing.py`, `pipeline/features/linguistic.py` (wps/filler/pause), `pipeline/merge.py`. Wired `pipeline/orchestrator.py` with 9 stages matching spec §7, `progress_cb` callback for backend, CLI entrypoint `python -m pipeline.orchestrator`. AssemblyAI ms→sec normalization moved to producer boundary. 14 new structural tests in `test_orchestrator_pieces.py` cover merge / smoothing / RZ / RRCF wiring / categorical anomaly logic. Full video→parquet acceptance run deferred — needs real interview video + API keys; documented in DECISIONS.md.
+- User: <fill if any retries / restarts / interventions occurred>
+
+---

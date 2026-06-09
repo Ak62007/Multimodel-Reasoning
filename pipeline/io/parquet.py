@@ -1,7 +1,11 @@
 import json
+import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+_log = logging.getLogger(__name__)
 
 
 def _is_scalar_na(x):
@@ -37,58 +41,42 @@ def _jsonify_cell(x):
         return json.dumps(str(x))
 
 
-def save_df_parquet_safe(df: pd.DataFrame, path: str):
-    """saves the dataframe a Parquet file while preserving the object type columns
+def save_df_parquet_safe(df: pd.DataFrame, path: str | Path) -> None:
+    """Save a DataFrame to Parquet while preserving object-typed columns.
 
-    Args:
-        df (pd.DataFrame): dataframe you want to save.
-        path (str): directory where you want to save.
+    Object columns are JSON-encoded and a sidecar `<path>.schema.json` records
+    which columns to JSON-decode on load. Pydantic `.model_dump()` dicts and
+    nested lists round-trip cleanly through this pair.
     """
-
-    # let's make a copy of the dataframe so that we don't mess with the original df
+    path = str(path)
     df = df.copy()
 
-    # we initialize this will keep track of which columns are normal and which columns has to be json encoded
-    schema = {}
-
+    schema: dict[str, str] = {}
     for col in df.columns:
         if df[col].dtype == "object":
-            # we will json encode them
             df[col] = df[col].apply(_jsonify_cell)
-            # Explicitly convert to string dtype to ensure PyArrow recognizes it correctly
             df[col] = df[col].astype("string")
-            # we will keep the info
             schema[col] = "json"
         else:
             schema[col] = "normal"
 
-    # now, let's save the data as parquet file
     df.to_parquet(path=path, engine="pyarrow")
-
-    # saving the schema next to it
     schema_path = path + ".schema.json"
     with open(schema_path, "w") as f:
         json.dump(schema, f)
 
-    print(f"Saved Parquet: {path}")
-    print(f"Saved schema: {schema_path}")
+    _log.info("Saved parquet: %s (+ %s)", path, schema_path)
 
 
-def load_df_parquet_safe(path: str) -> pd.DataFrame:
-    """loads the dataframe and restores the json formatted cols into python DS
-
-    Args:
-        path (str): path to the dir where data is saved
-    """
-
+def load_df_parquet_safe(path: str | Path) -> pd.DataFrame:
+    """Load a parquet written by `save_df_parquet_safe`, restoring object columns."""
+    path = str(path)
     df = pd.read_parquet(path=path, engine="pyarrow")
 
-    # load schema
     schema_path = path + ".schema.json"
     with open(schema_path) as f:
         schema = json.load(f)
 
-    # restore the columns
     for col, col_type in schema.items():
         if col_type == "json":
             df[col] = df[col].apply(lambda x: json.loads(x) if pd.notna(x) else None)
