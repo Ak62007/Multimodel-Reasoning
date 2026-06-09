@@ -76,7 +76,7 @@ This file is co-maintained:
 ## M3 — Pipeline tests
 
 - Completed: 2026-06-09T16:14:27Z
-- Commit: <agent: fills with `git rev-parse HEAD` after commit>
+- Commit: 0571600f6e0504755c29418ecc37a3b861db7d4d
 - Tag: m3-done
 - Session ID (if known, else "unknown"): unknown
 
