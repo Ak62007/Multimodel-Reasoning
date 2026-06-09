@@ -379,3 +379,71 @@ real end-to-end validation run against `data/uploads/Interview_2.mp4`:
 
 - **React Router v7 future-flag warnings are not addressed.** Advisory,
   don't affect behavior on v6; staying on v6 stable for now.
+
+## M7 — Docker + CI
+
+- **Backend image is pinned to `linux/amd64`** via
+  `FROM --platform=linux/amd64 …`. `mediapipe==0.10.31` (locked in
+  `uv.lock`) does not publish Linux arm64 wheels; without the pin uv
+  fails to resolve the dep on Apple Silicon builders. CI runners are
+  amd64 natively. Apple Silicon devs pay a Rosetta-emulation cost
+  (~3× slower build; runtime stays usable for `/api/health` and the
+  test-mode upload path).
+
+- **Backend uses multistage uv.** The `builder` stage runs
+  `uv sync --frozen --no-dev` into `/app/.venv`; the `runtime` stage
+  copies that venv on top of `python:3.12-slim` + the C libs that
+  librosa (`libsndfile1`), MediaPipe / OpenCV (`libgl1`,
+  `libglib2.0-0`), and numpy / scikit-learn (`libgomp1`) need. The
+  `--no-dev` flag keeps test deps out of the runtime layer.
+
+- **Frontend uses `oven/bun:1.3-debian` then `nginx:alpine`.** The
+  `1.1` tag I tried first rejected our generated `bun.lock` with
+  "Unknown lockfile version" — bun's lockfile format changed between
+  those minor versions; the Dockerfile + CI both pin `1.3`. Final
+  frontend image is ~92 MB.
+
+- **Backend image is large.** `whisper-timestamped` pulls in `torch`
+  (CPU build) + `numpy` + `mediapipe` + `opencv-python`. Slim isn't an
+  option without dropping deps. Mitigations possible but deferred to
+  M8 or later: (1) GPU-less torch wheel via constraint, (2) drop
+  whisper-timestamped in favour of AssemblyAI-only when the user
+  doesn't need word-level disfluency markers.
+
+- **nginx in the frontend image proxies `/api/*` to the backend
+  container.** This is what makes the SPA "single-origin" — same
+  domain handles both. The build context for the frontend Dockerfile
+  is the repo root (not `./frontend`) so it can copy both `frontend/`
+  and `docker/nginx.conf` in one image.
+
+- **`docker-compose.yml` uses a bind-mounted `./data` and read-only
+  `./models`.** Persistent data lives on the host; the SQLite DB,
+  uploads, and processed parquets all survive container restarts.
+  The `models/face_landmarker.task` file is bind-mounted read-only so
+  the container can't accidentally write to it.
+
+- **Single CI workflow with three jobs** in `.github/workflows/ci.yml`
+  (python lint+type, python tests, frontend build+test). Docker
+  images build in a separate `.github/workflows/docker.yml` triggered
+  only on `main` so PRs don't slow themselves with image builds.
+  `concurrency: cancel-in-progress: true` avoids piling up redundant
+  jobs on rapid pushes.
+
+- **CI uses `astral-sh/setup-uv@v3`** with `enable-cache: true` so the
+  uv resolver cache survives across runs. `uv sync --frozen --group
+  dev` is what locks the test deps in.
+
+- **`.dockerignore` excludes `legacy_notebooks/`** (~5 MB of `.ipynb`)
+  and `data/` (potentially hundreds of MB of uploads + parquets).
+  Without this, the build context balloons and every layer
+  invalidates on any host-side file change.
+
+- **`Makefile` provides `dev`, `test`, `lint`, `build`, `up`, `down`,
+  `clean`, `fixture`, `smoke-groq`.** `make dev` runs uvicorn and
+  vite concurrently via `&` + `trap 'kill 0' INT TERM EXIT`. Simpler
+  than `concurrently` or `npm-run-all` for this size.
+
+- **`docker compose up` verified locally end-to-end.** Backend serves
+  `/api/health` directly on `:8000` AND through the nginx proxy at
+  `:5173/api/health` (the single-origin production path). Confirmed
+  with curl during M7 acceptance.

@@ -192,3 +192,33 @@ This file is co-maintained:
 - User: <fill if any retries / restarts / interventions occurred>
 
 ---
+
+## M7 — Docker + CI
+
+- Completed: 2026-06-09T17:51:45Z
+- Commit: <agent: fills with `git rev-parse HEAD` after commit>
+- Tag: m7-done
+- Session ID (if known, else "unknown"): unknown
+
+### This-session subtotal (since last fresh Claude Code session start)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- Session subtotal: <FILL IN>
+
+### Run total (sum across ALL sessions in this run)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- **Run total: <FILL IN>**
+
+### Notes
+
+- Agent: Wrote multistage `docker/Dockerfile.backend` (python:3.12-slim, pinned `--platform=linux/amd64` because mediapipe 0.10.31 lacks Linux arm64 wheels; libsndfile1/libgl1/libglib2.0-0/libgomp1 system libs; uv venv copied from builder), multistage `docker/Dockerfile.frontend` (oven/bun:1.3-debian then nginx:alpine; bun 1.1 rejected the lockfile format), `docker/nginx.conf` (SPA fallback + `/api/*` proxy to backend container + 600M client_max_body_size), `docker-compose.yml` (bind-mounted ./data and read-only ./models; env_file .env; backend 8000, frontend 5173→nginx 80), `.dockerignore` (excludes legacy_notebooks/, data/, models/, .venv/, etc.). CI: `.github/workflows/ci.yml` with three jobs (python-lint-and-type, python-tests with stub LLM + coverage upload, frontend-build-and-test with bun 1.3); `.github/workflows/docker.yml` (main-only; builds both images via docker/build-push-action@v6 with gha cache). Makefile with dev/test/lint/build/up/down/clean/fixture/smoke-groq targets; `make dev` uses `trap 'kill 0' INT TERM EXIT` for clean process group teardown. End-to-end `docker compose up` verified locally: backend `/api/health` returned `{"status":"ok","version":"0.1.0"}` directly and through nginx proxy at `localhost:5173/api/health`. Frontend image ~92MB. Backend image is bloated by torch + mediapipe but functional.
+- User: <fill if any retries / restarts / interventions occurred>
+
+---
