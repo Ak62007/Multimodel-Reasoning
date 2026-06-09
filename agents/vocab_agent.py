@@ -1,5 +1,49 @@
-"""Internal vocabulary observer. Output not exposed via API. Implemented in M4."""
+"""Vocabulary observer. Internal — output not exposed via API."""
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from agents import _stub
+from agents._provider import make_agent
+from agents._retry import with_retries
+from agents._settings import AgentSettings, get_agent_settings
+from agents.prompts import VOCABULARY_PROMPT
+from agents.schemas import VocabObservation, VocabularyAnomalyEvent
+
+
+def _format_input(start: float, end: float, events: list[VocabularyAnomalyEvent]) -> str:
+    if not events:
+        return f"Time range: {start:.2f}–{end:.2f}s.\nNo verbal anomalies detected."
+    lines = [f"Time range: {start:.2f}–{end:.2f}s."]
+    for ev in events:
+        lines.append(
+            f"- [{ev.feature_type}] {ev.behavioral_tag} at "
+            f"{ev.timestamp_start:.2f}–{ev.timestamp_end:.2f}s, "
+            f"intensity={ev.intensity_score:.2f}, sustained={ev.is_sustained}"
+        )
+    return "\n".join(lines)
+
+
+async def run_vocab_observer(
+    start: float,
+    end: float,
+    events: list[VocabularyAnomalyEvent],
+    *,
+    settings: AgentSettings | None = None,
+) -> VocabObservation:
+    settings = settings or get_agent_settings()
+    if settings.llm_provider == "stub":
+        return _stub.stub_vocab(start, end, events)
+
+    agent = make_agent(
+        system_prompt=VOCABULARY_PROMPT, output_type=VocabObservation, settings=settings
+    )
+    user_msg = _format_input(start, end, events)
+
+    async def _call() -> VocabObservation:
+        result = await agent.run(user_msg)
+        return result.output  # type: ignore[return-value]
+
+    return await with_retries(_call, label="vocab_observer")
+
+
+__all__ = ["run_vocab_observer"]

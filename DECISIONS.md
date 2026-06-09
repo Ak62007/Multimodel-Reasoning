@@ -199,3 +199,82 @@ real end-to-end validation run against `data/uploads/Interview_2.mp4`:
 - **Per-file ignore for `RUF003` in tests.** Test/fixture file comments
   use the en-dash (`–`) and multiplication sign (`×`) for readability
   (e.g. "60 rows × 12 cols"). These are runtime-irrelevant.
+
+## M4 — Agentic layer
+
+- **Schema rename + extension (spec §9.5).** `*AnalysisReport` →
+  `*Observation` to mark them as internal scaffolding. `CrossModalInsight`
+  gained `pattern_type` (Strength / Concern / Notable),
+  `modalities_involved`, and split `behavioral_analysis` into
+  `observation` + `interpretation`. `IntegratedBehavioralReport` has
+  `overall_window_tone` instead of `overall_credibility` — five-value enum
+  covering positive cases. Tests in `test_agent_schemas.py` lock the new
+  contract (incl. rejection of legacy literal values).
+
+- **Prompts rewritten (spec §9.6).** Observers explicitly marked "internal
+  observer"; Pattern Detector switched to Strength/Concern/Notable framing
+  with selectivity rules; Judge updated to consume the cross-modal pattern
+  list and produce the four-section markdown report. Old prompts in the
+  legacy notebooks weren't migrated — `agents/prompts.py` is now the
+  source of truth.
+
+- **Stub provider as the determinism backbone.** `LLM_PROVIDER=stub`
+  short-circuits each agent runner with `_stub.py`'s canned outputs.
+  Outputs are derived from the structured input (number of anomalous
+  events, transcript snippet) so they're schema-correct AND informative
+  enough that integration tests can assert real properties (pattern
+  detector emits insights only when ≥2 modalities active, judge counts
+  Strengths vs Concerns). Real LLM is never called by the CI suite.
+
+- **Bounded concurrency via `asyncio.Semaphore`.** `AGENT_MAX_CONCURRENCY`
+  (default 4) caps how many windows are processed in parallel. The three
+  observers per window then run via `asyncio.gather` since they're
+  independent. With Groq's rate limits this is the safe parallelism level
+  for the production model.
+
+- **Retries (spec §9.4).** `agents/_retry.py` provides
+  `with_retries(fn, max_attempts=3, base_delay=1.0)` — exponential
+  backoff. Each agent runner wraps its `_call` in it. On final failure for
+  a single window, `_process_window` catches and returns `None`; the
+  orchestrator skips that window from the public output. The job as a
+  whole continues.
+
+- **pydantic-ai Agent caching via `lru_cache`.** Re-building a
+  `pydantic_ai.Agent` for every window would re-create the Groq client
+  and re-validate the output schema; we cache by
+  `(provider, model, api_key, prompt, output_type)` so all eight stages
+  of one job share the right instance. `pydantic-ai`'s typed `Agent[T]`
+  is generic; cast `result.output` and add `# type: ignore[return-value]`
+  because the runtime is correct but mypy's generic inference loses the
+  binding through the cache.
+
+- **Empty-window drop is silent.** Per spec §9.4: if Pattern Detector
+  returns empty `key_insights`, the window is removed from
+  `public_reports` before the Judge sees them. The orchestrator logs at
+  DEBUG; the user never sees baseline windows in the UI. The Judge still
+  runs even when `public_reports == []` — the API contract is that
+  `/api/jobs/{id}/report` always returns a FinalReport.
+
+- **Real Groq end-to-end smoke test passed.** `scripts/smoke_test_groq.py`
+  ran on `tests/fixtures/tiny_master_df.parquet` (60 rows, 2 engineered
+  anomalous windows). The chain produced 9 Groq calls (3 observers × 2
+  windows + 2 pattern detectors + 1 judge), surfaced both windows with
+  `tone=Concerning` and `pattern_type=Concern`, and emitted a coherent
+  four-section FinalReport. Logged in DECISIONS for traceability; not
+  committed to CI because it costs tokens.
+
+- **`_extract.py` is a separate module** (not inlined in each agent file)
+  so the extraction logic is unit-testable without touching pydantic-ai
+  and so the four agents share consistent input formatting.
+
+- **PEP 695 generic syntax (`def f[T](...)`)** used in `_provider.py` and
+  `_retry.py` per ruff's `UP047` — these are 3.12+ projects and the new
+  syntax is clearer than `TypeVar`.
+
+- **`agents/_settings.py` is separate from `backend/app/config.py`.**
+  The backend has its own `Settings`; the agents read theirs directly
+  via `pydantic-settings`. Two reasons: (1) `agents/` must be usable
+  without importing the FastAPI app (tests, scripts/, the orchestrator
+  CLI all consume `agents/` directly); (2) keeping them separate lets
+  M5 wire the backend's `Settings` to feed the agents' env without
+  introducing an import-time circular dependency.

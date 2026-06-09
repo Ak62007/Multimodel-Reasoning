@@ -102,3 +102,33 @@ This file is co-maintained:
 - User: <fill if any retries / restarts / interventions occurred>
 
 ---
+
+## M4 — Agentic layer
+
+- Completed: 2026-06-09T22:05:00Z
+- Commit: <agent: fills with `git rev-parse HEAD` after commit>
+- Tag: m4-done
+- Session ID (if known, else "unknown"): unknown
+
+### This-session subtotal (since last fresh Claude Code session start)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- Session subtotal: <FILL IN>
+
+### Run total (sum across ALL sessions in this run)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- **Run total: <FILL IN>**
+
+### Notes
+
+- Agent: Renamed observer outputs to `*Observation`. Added `pattern_type`, `significance`, `modalities_involved`, split `observation`/`interpretation` on `CrossModalInsight`. Replaced `overall_credibility` with `overall_window_tone` (5-value). Rewrote all five prompts per spec §9.6. Built `agents/windows.py` (range merging with 1s gap), `agents/_extract.py` (anomaly events + transcript slice per window), `agents/_stub.py` (deterministic stub provider), `agents/_provider.py` (pydantic-ai Agent factory with `lru_cache`), `agents/_retry.py` (exponential-backoff wrapper), `agents/_settings.py` (env config). Wrote per-agent runners (visual/audio/vocab observers, pattern_detector, judge) + `agents/orchestrator.py` with `build_report(master_df, speaker_label, transcript_df, on_window_done)` async API. Concurrency via `asyncio.Semaphore(AGENT_MAX_CONCURRENCY)`; observers fan out via `asyncio.gather`. Wrote 20 agent tests (9 schemas + 11 orchestrator) passing under `LLM_PROVIDER=stub`. Total suite: 126 passed. Real-Groq end-to-end smoke test via `scripts/smoke_test_groq.py` on the tiny fixture succeeded (9 LLM calls, both windows surfaced as `Concerning`, coherent four-section FinalReport).
+- User: <fill if any retries / restarts / interventions occurred>
+
+---
