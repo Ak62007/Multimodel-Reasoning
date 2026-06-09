@@ -16,7 +16,7 @@ This file is co-maintained:
 ## M1 — Refactor + scaffolding
 
 - Completed: 2026-06-09T13:49:45Z
-- Commit: 0f586212682596787ab6afe6616e61dcd9fcba01
+- Commit: f88a1879c512a4646f54366d899399dd8687ae79
 - Tag: m1-done
 - Session ID (if known, else "unknown"): unknown
 
