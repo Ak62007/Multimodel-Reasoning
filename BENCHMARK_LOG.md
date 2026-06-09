@@ -46,7 +46,7 @@ This file is co-maintained:
 ## M2 — Pipeline orchestrator + cleanup
 
 - Completed: 2026-06-09T15:18:51Z
-- Commit: <agent: fills with `git rev-parse HEAD` after commit>
+- Commit: 310b814b6ae6cc144592da6a2bbf970a225d32f7
 - Tag: m2-done
 - Session ID (if known, else "unknown"): unknown
 
