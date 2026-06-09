@@ -166,7 +166,7 @@ This file is co-maintained:
 ## M6 — Frontend
 
 - Completed: 2026-06-09T17:17:02Z
-- Commit: <agent: fills with `git rev-parse HEAD` after commit>
+- Commit: 4e5ed36032e36331476a5878b7ea07a7120d0a5f
 - Tag: m6-done
 - Session ID (if known, else "unknown"): unknown
 
