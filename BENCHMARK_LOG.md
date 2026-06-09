@@ -22,19 +22,19 @@ This file is co-maintained:
 
 ### This-session subtotal (since last fresh Claude Code session start)
 
-- Input: 8.4k tokens
-- Output: 225.7k tokens
-- Cache read: 47.3m tokens
-- Cache write: 1.249m tokens
-- Session subtotal: $36.00
+- Input: 8.5k tokens
+- Output: 268.5k tokens
+- Cache read: 64.5m tokens
+- Cache write: 1.649m tokens
+- Session subtotal: $48.71
 
 ### Run total (sum across ALL sessions in this run)
 
-- Input: 8.4k tokens
-- Output: 225.7k tokens
-- Cache read: 47.3m tokens
-- Cache write: 1.249m tokens
-- Run total: $36.00
+- Input: 8.5k tokens
+- Output: 268.5k tokens
+- Cache read: 64.5m tokens
+- Cache write: 1.649m tokens
+- Run total: $48.71
 
 ### Notes
 
