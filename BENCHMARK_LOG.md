@@ -106,7 +106,7 @@ This file is co-maintained:
 ## M4 — Agentic layer
 
 - Completed: 2026-06-09T22:05:00Z
-- Commit: <agent: fills with `git rev-parse HEAD` after commit>
+- Commit: 92417862b7271ab8b8602ceda6e1bd51a719b804
 - Tag: m4-done
 - Session ID (if known, else "unknown"): unknown
 
