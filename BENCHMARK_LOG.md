@@ -222,3 +222,52 @@ This file is co-maintained:
 - User: <FILL IN — any retries / restarts / interventions worth noting>
 
 ---
+
+## M6 — Frontend
+
+- Completed: 2026-06-10
+- Commit: (see `git rev-list -n 1 m6-done`)
+- Tag: m6-done
+- Telemetry source used (logfire / Factory UI / other): <FILL IN>
+
+### This-session subtotal (if Factory telemetry is session-scoped; else same as Run total)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- Session subtotal: <FILL IN>
+
+### Run total (cumulative across the entire benchmarking run)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- **Run total: <FILL IN>**
+
+### Notes
+
+- Agent: implemented the full §8 React + Vite + TypeScript + Tailwind
+  frontend. Three screens (`UploadScreen`, `AnalyzingScreen`,
+  `ReportScreen`) flow as a state machine over a single in-flight job id,
+  persisted to `localStorage` per §8.1. TanStack Query handles all server
+  state; the Analyzing screen polls `/api/jobs/{id}` every 2 s. Stage
+  friendly-text table (`src/lib/stages.ts`) mirrors §8.1.2 verbatim;
+  `StageChecklist` renders done / in-progress / pending icons.
+  `ReportScreen` shows the three §8.2 sections (Executive Summary +
+  Cross-Modal Patterns + Final Conclusion), with semantic tone badges
+  (green / gray / amber / red) and pattern-type badges (green / red /
+  amber). Markdown download wired via Blob + revoked URL.
+  Failed-job state renders an error card + collapsible log tail per §8.3.
+  14 vitest tests cover: Upload disabled state, file selection, submit →
+  uploadJob → onJobCreated; Analyzing stage label + progress bar +
+  per-stage checklist transitions + onSucceeded / onFailed callbacks;
+  Report happy path (three sections), empty-segments fallback, all three
+  pattern_type badge colors, markdown download, and failed-job error
+  card with log tail. `npm run build` succeeds (354 KB JS / 109 KB gz);
+  `vite dev` serves cleanly on 127.0.0.1:5177 (smoke-verified by curl).
+  Backend test suite (165) still green.
+- User: <FILL IN — any retries / restarts / interventions worth noting>
+
+---

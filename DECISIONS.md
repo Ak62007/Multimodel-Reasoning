@@ -306,3 +306,51 @@ and `agents.*` lands in the per-job log file. The handler is detached in
 a `finally` block. There is a small risk of log-line cross-contamination
 if multiple jobs run concurrently in the v1 single-user app; the spec is
 explicit that v1 is single-user (§3), so this is acceptable.
+
+---
+
+## 2026-06-10 — M6: frontend
+
+### Stack choices vs spec §4 / §8
+
+- React 18 + Vite + TypeScript + Tailwind CSS (§4 / §8.5).
+- TanStack Query v5 for all server state; polling interval set to 2 s on
+  the Analyzing screen via `refetchInterval: q => status === "queued" || "running" ? 2000 : false` (§8.1.2).
+- `vitest` + `@testing-library/react` for tests.
+- `react-markdown` for the FinalReport markdown sections.
+- `sonner` for toast errors (per §8.5).
+- npm (not bun) — documented here.
+
+### State-machine layout
+
+- One top-level `<App>` component with a `mode` state of
+  `"upload" | "analyzing" | "report"` plus an active `jobId`.
+- The active job id is mirrored to `localStorage` so a page refresh
+  resumes the in-flight flow (matches the §8.1 "Persist the active job
+  id" requirement).
+- "Recent analyses" are recorded in `localStorage` and surfaced under
+  the upload card per §8.1.1.
+
+### Stage list shared with backend
+
+- `frontend/src/lib/stages.ts` mirrors the §7.3 / `PUBLIC_STAGES` list
+  in `backend/app/services/job_runner.py`. The friendly-text map in §8.1.2
+  is implemented verbatim. There is no compile-time link between the two —
+  they are duplicated by design (the backend ships the JSON labels, the
+  frontend just maps them to human strings). Keeping them in sync is a
+  manual exercise.
+
+### Markdown download
+
+- The "Download as Markdown" button creates an in-memory `Blob`, calls
+  `URL.createObjectURL`, programmatically clicks an `<a download>` link,
+  then revokes the blob URL. Filename pattern:
+  `{filename_without_extension}-behavioral-report.md`.
+
+### Restraint vs. ornament
+
+- Per §8.4 the design is deliberately minimal: no gradients, no charts,
+  no sidebar / app shell, centered single-column at `max-w-768px`. Two
+  colors of chrome (white + neutral-50) plus semantic accent colors on
+  tone badges (green / gray / amber / red) and pattern-type badges
+  (green / red / amber).

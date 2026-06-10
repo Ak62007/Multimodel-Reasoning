@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.vite/
+coverage/
+*.local
+# tsc -b output for composite project references
+*.tsbuildinfo
+# emitted alongside the .ts sources by tsc -b
+vite.config.js
+vite.config.d.ts
+vitest.config.js
+vitest.config.d.ts
