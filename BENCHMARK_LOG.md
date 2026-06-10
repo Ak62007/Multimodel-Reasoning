@@ -95,3 +95,40 @@ This file is co-maintained:
 - User: <FILL IN — any retries / restarts / interventions worth noting>
 
 ---
+
+## M3 — Pipeline tests
+
+- Completed: 2026-06-10
+- Commit: (see `git rev-list -n 1 m3-done`)
+- Tag: m3-done
+- Telemetry source used (logfire / Factory UI / other): <FILL IN>
+
+### This-session subtotal (if Factory telemetry is session-scoped; else same as Run total)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- Session subtotal: <FILL IN>
+
+### Run total (cumulative across the entire benchmarking run)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- **Run total: <FILL IN>**
+
+### Notes
+
+- Agent: wrote 121 unit tests across `tests/unit/{test_schemas,test_parquet_io,
+  test_anomaly,test_features,test_paths}.py`. Generated a deterministic
+  60-row `tests/fixtures/tiny_master_df.parquet` (+ `tiny_transcript.parquet`
+  + `meta.json`) with two injected anomalous windows (blink @ 5.0-7.0 s,
+  pitch @ 18.0-21.0 s). Combined line/branch coverage on the §10 target
+  modules: 96% (features 97%, anomaly 93%, io 100%) — every per-directory
+  target met. All four acceptance checks (ruff, ruff format, mypy, pytest)
+  green.
+- User: <FILL IN — any retries / restarts / interventions worth noting>
+
+---
