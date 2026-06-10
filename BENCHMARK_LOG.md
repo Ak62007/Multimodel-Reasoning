@@ -178,3 +178,48 @@ This file is co-maintained:
 - User: <FILL IN — any retries / restarts / interventions worth noting>
 
 ---
+
+## M5 — Backend API
+
+- Completed: 2026-06-10
+- Commit: (see `git rev-list -n 1 m5-done`)
+- Tag: m5-done
+- Telemetry source used (logfire / Factory UI / other): <FILL IN>
+
+### This-session subtotal (if Factory telemetry is session-scoped; else same as Run total)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- Session subtotal: <FILL IN>
+
+### Run total (cumulative across the entire benchmarking run)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- **Run total: <FILL IN>**
+
+### Notes
+
+- Agent: implemented the full §7 backend. `backend/app/main.create_app`
+  builds a FastAPI app with lifespan-based DB init + CORS; `pydantic-settings`
+  config in `backend/app/config.py`; SQLModel `JobRecord` table at
+  `data/mmr.db`. Three routers (`health`, `jobs`, `reports`) cover every §7
+  endpoint with correct status codes (201 on create, 204 on delete, 404 on
+  unknown, 409 on not-ready segments/report, 422 on bad MIME, 413 on
+  oversize). `services/storage.py` validates uploads + stages the
+  test-mode parquet shortcut by regenerating the sidecar; `services/job_runner.py`
+  orchestrates pipeline + agents in `BackgroundTasks`, captures per-job logs
+  via a `FileHandler` attached to root, updates `current_stage` + `progress`
+  in SQLite at every transition, persists `segments.json` + `report.json` +
+  `report.md`. Wrote 14 API tests (`tests/api/test_health.py`,
+  `test_jobs_endpoints.py`) covering full job lifecycle in
+  `MMR_TEST_MODE=1` + `LLM_PROVIDER=stub`. Verified `uvicorn backend.app.main:app`
+  serves /api/health + /api/jobs successfully. All four acceptance checks
+  (ruff, ruff format, mypy, pytest 165 total) green.
+- User: <FILL IN — any retries / restarts / interventions worth noting>
+
+---

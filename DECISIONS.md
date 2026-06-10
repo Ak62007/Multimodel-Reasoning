@@ -225,7 +225,7 @@ recorded here, with timestamp + rationale. Per §17 of the spec.
   whole job. The judge always runs at the end, even when no windows
   produced insights, so the API always has a `FinalReport` to return.
 
-### Documented manual real-Groq run
+### Documented manual real-Groq run (M4)
 
 Verified on 2026-06-10 against `tests/fixtures/tiny_master_df.parquet`
 using model `llama-3.3-70b-versatile` and the `.env` keys:
@@ -246,3 +246,63 @@ returned a four-section markdown report wired to the `FinalReport`
 schema. Total wall time on Groq llama-3.3-70b-versatile was around
 20 s. The vocab observer's first call timed out once and the retry
 wrapper recovered transparently — exactly the behaviour §9.4 asks for.
+
+---
+
+## 2026-06-10 — M5: backend API
+
+### `JobRunner` shape
+
+The JobRunner runs inside FastAPI's `BackgroundTasks`. To keep the
+contract simple, the public entrypoint (`run_job`) is sync and just
+wraps `asyncio.run(_run_job(...))`. Inside `_run_job` the pipeline (sync)
+is run via `asyncio.to_thread` so the event loop stays free for
+SQLite writes.
+
+### `MMR_TEST_MODE=1` ingestion path
+
+Spec §10.2 asks for "a test-only ingestion path so tests don't run the
+heavy pipeline." The implementation: when `MMR_TEST_MODE=1` and the
+upload's suffix is `.parquet`, the storage layer reads the parquet,
+JSON-decodes any object columns whose first value looks like JSON, and
+re-saves via `save_df_parquet_safe` (which regenerates the sidecar).
+The JobRunner then skips the pipeline and goes straight to the agents.
+This means the API integration tests exercise the full router + DB +
+JobRunner + agents chain without paying for MediaPipe / librosa /
+AssemblyAI / Whisper.
+
+### Public stage list vs. pipeline stages
+
+Spec §7.3 lists eleven `current_stage` values; the pipeline orchestrator
+internally has ten (it splits `smoothing` from `feature_engineering`).
+The JobRunner collapses `smoothing` into `feature_engineering` when
+reporting `current_stage`, and emits `running_agents` + 
+`generating_final_report` after the pipeline returns. This keeps the
+spec's stage list intact for the frontend's friendly-name table without
+losing the cleaner pipeline-internal partitioning.
+
+### Storage layout per job
+
+```
+data/uploads/{job_id}.{ext}                 # raw upload
+data/processed/{job_id}/
+  parquet/master.parquet                   # canonical master parquet
+  parquet/master.parquet.schema.json       # sidecar
+  segments.json                            # IntegratedBehavioralReport[]
+  report.json                              # FinalReport
+  report.md                                # human-readable markdown
+  pipeline.log                             # per-job log (tail via /logs)
+  frames/                                  # MediaPipe input frames
+```
+
+Persisting agent outputs on disk lets the report endpoints stream files
+directly without holding state in the DB.
+
+### Per-job log capture
+
+The JobRunner attaches a `logging.FileHandler` to the root logger for the
+duration of the job, so every `logger.info(...)` call from `pipeline.*`
+and `agents.*` lands in the per-job log file. The handler is detached in
+a `finally` block. There is a small risk of log-line cross-contamination
+if multiple jobs run concurrently in the v1 single-user app; the spec is
+explicit that v1 is single-user (§3), so this is acceptable.
