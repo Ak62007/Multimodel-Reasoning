@@ -69,7 +69,10 @@ export default function ReportScreen({ jobId, onNewAnalysis }: ReportScreenProps
     enabled: failed,
   });
 
-  const segments = segmentsQuery.data ?? [];
+  const segments = useMemo(
+    () => segmentsQuery.data ?? [],
+    [segmentsQuery.data],
+  );
   const report = reportQuery.data;
 
   useEffect(() => {

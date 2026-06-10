@@ -1,0 +1,43 @@
+# docker-compose.yml — `docker compose up` brings the full MMR app online.
+#
+# Two services:
+#   - backend  : FastAPI + pipeline + agents, served by uvicorn on :8000
+#   - frontend : Vite-built React SPA served by nginx on :8080, with /api
+#                reverse-proxied to the backend container.
+#
+# Persistent state lives under ./data (mounted into the backend container).
+
+services:
+  backend:
+    image: mmr-backend:local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: mmr-backend
+    env_file:
+      - .env
+    environment:
+      DATA_ROOT: /app/data
+      UPLOAD_DIR: /app/data/uploads
+      PROCESSED_DIR: /app/data/processed
+      MMR_DB_URL: sqlite:////app/data/mmr.db
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models:ro
+    ports:
+      - "8000:8000"
+
+  frontend:
+    image: mmr-frontend:local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+      args:
+        # Empty string keeps the SPA pointing at the same origin so the
+        # nginx /api proxy in this container forwards requests to backend.
+        VITE_API_BASE_URL: ""
+    container_name: mmr-frontend
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"

@@ -271,3 +271,55 @@ This file is co-maintained:
 - User: <FILL IN — any retries / restarts / interventions worth noting>
 
 ---
+
+## M7 — Docker + CI
+
+- Completed: 2026-06-10
+- Commit: (see `git rev-list -n 1 m7-done`)
+- Tag: m7-done
+- Telemetry source used (logfire / Factory UI / other): <FILL IN>
+
+### This-session subtotal (if Factory telemetry is session-scoped; else same as Run total)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- Session subtotal: <FILL IN>
+
+### Run total (cumulative across the entire benchmarking run)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- **Run total: <FILL IN>**
+
+### Notes
+
+- Agent: wrote `docker/Dockerfile.backend` (multistage uv build +
+  ffmpeg / libsndfile / libgl runtime deps + curl healthcheck) and
+  `docker/Dockerfile.frontend` (Node 20 builder → nginx:alpine serve,
+  proxying /api to the backend service via `docker/nginx.conf`).
+  `docker-compose.yml` exposes backend on :8000 and frontend on :8080,
+  mounts `./data:/app/data` for persistence and `./models:/app/models:ro`
+  for the MediaPipe weights, and passes `.env` to the backend.
+  `.dockerignore` trims the build context (no `.venv`, `data/`,
+  `legacy_notebooks/`, `frontend/node_modules`, etc.).
+  GitHub Actions: `.github/workflows/ci.yml` runs the three §11 jobs
+  (python-lint-and-type, python-tests with coverage, frontend lint +
+  typecheck + vitest + build); `.github/workflows/docker.yml` builds
+  both images on push-to-main with GHA cache.
+  Added ESLint v9 flat config + a minimal `Makefile` with the §12.2
+  targets (`dev` / `test` / `lint` / `fmt` / `mypy` / `build` / `clean`).
+  Fixed three `ReportScreen` `react-hooks/exhaustive-deps` warnings by
+  wrapping `segments` in its own `useMemo`. All four backend acceptance
+  checks (ruff, ruff format, mypy, pytest 165) + all four frontend
+  acceptance checks (eslint, tsc, vitest 14, vite build) green;
+  `docker compose config` validates the full stack. The Docker daemon
+  wasn't running on the local machine so the image builds will be
+  exercised by the docker.yml CI job on first push to main — captured
+  in DECISIONS.md.
+- User: <FILL IN — any retries / restarts / interventions worth noting>
+
+---

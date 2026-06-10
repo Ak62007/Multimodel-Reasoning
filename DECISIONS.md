@@ -354,3 +354,72 @@ explicit that v1 is single-user (§3), so this is acceptable.
   colors of chrome (white + neutral-50) plus semantic accent colors on
   tone badges (green / gray / amber / red) and pattern-type badges
   (green / red / amber).
+
+---
+
+## 2026-06-10 — M7: Docker + CI
+
+### Two Dockerfiles, one compose file
+
+- `docker/Dockerfile.backend` — multistage. The builder uses
+  `python:3.12-slim` + `uv` to resolve `pyproject.toml` + `uv.lock` into
+  a single `/opt/venv`. The runtime stage installs only the system
+  libraries the pipeline needs (ffmpeg, libsndfile1, libgl1,
+  libglib2.0-0, libgomp1, curl) and copies the venv + app source. A
+  `HEALTHCHECK` curls `/api/health`.
+- `docker/Dockerfile.frontend` — multistage. The builder runs `npm ci`
+  + `npm run build` to produce `dist/`, then `nginx:alpine` serves it.
+  `docker/nginx.conf` proxies `/api/*` to the `backend` service so the
+  SPA can call same-origin endpoints.
+- `docker-compose.yml` — backend on `:8000`, frontend on `:8080`,
+  `.env` loaded into backend, `./data:/app/data` mounted for
+  persistence, `./models:/app/models:ro` for the MediaPipe weights.
+
+### `.dockerignore`
+
+- Excludes `.venv`, `__pycache__`, `data/`, `legacy_notebooks/`,
+  `frontend/node_modules`, `.env`, the `tests/` tree, and the
+  documentation files. This keeps the build context small enough to
+  send to the Docker daemon without bundling the entire 500 MB sample
+  video or the legacy notebooks.
+
+### Two GitHub Actions workflows
+
+- `.github/workflows/ci.yml` — three independent jobs per §11:
+  `python-lint-and-type` (ruff check + ruff format --check + mypy),
+  `python-tests` (pytest with coverage, `LLM_PROVIDER=stub`,
+  `MMR_TEST_MODE=1`), `frontend-build-and-test` (Node 20, npm ci, lint,
+  typecheck, vitest, build).
+- `.github/workflows/docker.yml` — builds both images via
+  `docker/build-push-action@v6` with GHA cache, gated on pushes to
+  `main` per spec §11. Images are loaded into the runner's daemon but
+  not pushed; wiring a registry is out of scope for M7.
+
+### Frontend lint + the `ReportScreen` `useMemo` warnings
+
+- ESLint v9 flat config in `frontend/eslint.config.js` (typescript-eslint
+  + react-hooks + react-refresh). After enabling react-hooks, the
+  `useMemo` calls in `ReportScreen` flagged because `segments` was being
+  re-derived inline as `segmentsQuery.data ?? []` on every render,
+  which changes the dependency identity. Wrapped `segments` in its own
+  `useMemo` keyed off `segmentsQuery.data` — clean and matches the
+  intent of "stable memo while the query is loading".
+
+### Docker daemon availability during M7 verification
+
+- The Docker daemon was not running on the local machine when I tried
+  to do a build-stage smoke test of `docker/Dockerfile.frontend`, so I
+  couldn't actually exercise the image builds. Two compensating
+  validations were performed: `docker compose config` successfully
+  resolved the full compose stack with both services, args, env, ports,
+  volumes, and the `depends_on` graph; and `.github/workflows/docker.yml`
+  will run a real `docker buildx build` for both images on the first
+  push to `main`. The Dockerfiles themselves were written carefully
+  with the same dependency list the local `uv sync` already validates.
+
+### Makefile
+
+- `make dev` uses `npx concurrently` to fan out backend + frontend in
+  one terminal (`uv run uvicorn --reload` and `npm run dev`). Other
+  targets: `make test`, `make lint`, `make fmt`, `make mypy`, `make build`,
+  `make clean`.

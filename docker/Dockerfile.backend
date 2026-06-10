@@ -1,0 +1,77 @@
+# MMR backend image.
+#
+# Multistage:
+#   1. ``uv`` resolves and installs dependencies into a virtualenv.
+#   2. Runtime stage copies the venv + the application source.
+#
+# System packages installed:
+#   - ffmpeg          — moviepy + librosa pull audio out of containers.
+#   - libsndfile1     — librosa needs it for WAV I/O.
+#   - libgl1, libglib2.0-0 — OpenCV / MediaPipe.
+#   - libgomp1        — sklearn / mediapipe runtime.
+#   - curl            — for healthchecks.
+#
+# Layout choices:
+#   - The application source is mounted on top of /app at runtime (via
+#     docker-compose) so changes show up without rebuilding; the COPY
+#     here only matters when running the image standalone.
+
+# ---------- builder ----------
+FROM python:3.12-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_LINK_MODE=copy
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        build-essential \
+        curl \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /uvx /usr/local/bin/
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --no-dev --frozen --no-install-project
+
+
+# ---------- runtime ----------
+FROM python:3.12-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:${PATH}"
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        ffmpeg \
+        libsndfile1 \
+        libgl1 \
+        libglib2.0-0 \
+        libgomp1 \
+        curl \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /opt/venv /opt/venv
+
+WORKDIR /app
+
+# Copy only the things the backend / pipeline / agents need at runtime.
+COPY backend backend
+COPY pipeline pipeline
+COPY agents agents
+COPY models models
+COPY pyproject.toml README.md ./
+
+EXPOSE 8000
+
+# `data/` is the persistent volume mount point.
+RUN mkdir -p /app/data
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -fsS http://localhost:8000/api/health || exit 1
+
+CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
