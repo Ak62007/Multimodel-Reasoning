@@ -23,20 +23,19 @@ This file is co-maintained:
 
 ### This-session subtotal (since last fresh Claude Code session start)
 
-- Input: 1,624 tokens
-- Output: 711,936 tokens
-- Cache read: 82,515,786 tokens
-- Cache write: 2,081,097 tokens
+- Input: 1,718 tokens
+- Output: 939,557 tokens
+- Cache read: 107,187,097 tokens
+- Cache write: 2,531,906 tokens
 - Session subtotal: (cost not provided)
 
 ### Run total (sum across ALL sessions in this run)
 
-- Input: 1,624 tokens
-- Output: 711,936 tokens
-- Cache read: 82,515,786 tokens
-- Cache write: 2,081,097 tokens
+- Input: 1,718 tokens
+- Output: 939,557 tokens
+- Cache read: 107,187,097 tokens
+- Cache write: 2,531,906 tokens
 - Run total: (cost not provided)
-### Notes
 
 - Agent: established the §6 layout end-to-end. `src/` and `AI/` are gone;
   `pipeline/`, `agents/`, `backend/app/` and `tests/` are scaffolded with
