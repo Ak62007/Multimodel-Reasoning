@@ -11,15 +11,15 @@ import pytest
 from pydantic import ValidationError
 
 from agents.schemas import (
-    AudioAnalysisReport,
     AudioAnomalyEvent,
+    AudioObservation,
     CrossModalInsight,
     FinalReport,
     IntegratedBehavioralReport,
-    VisualAnalysisReport,
     VisualAnomalyEvent,
-    VocabularyAnalysisReport,
-    VocabularyAnomalyEvent,
+    VisualObservation,
+    VocabAnomalyEvent,
+    VocabObservation,
 )
 from pipeline.schemas import (
     WPS,
@@ -212,7 +212,8 @@ class TestFillerPause:
 
 
 # ---------------------------------------------------------------------------
-# agents.schemas
+# agents.schemas — renamed observers, new CrossModalInsight fields,
+# new overall_window_tone literal.
 # ---------------------------------------------------------------------------
 
 
@@ -238,8 +239,8 @@ def _aud_event() -> AudioAnomalyEvent:
     )
 
 
-def _voc_event() -> VocabularyAnomalyEvent:
-    return VocabularyAnomalyEvent(
+def _voc_event() -> VocabAnomalyEvent:
+    return VocabAnomalyEvent(
         timestamp_start=14.0,
         timestamp_end=15.0,
         feature_type="Pauses",
@@ -249,68 +250,134 @@ def _voc_event() -> VocabularyAnomalyEvent:
     )
 
 
-def test_visual_analysis_report_round_trip() -> None:
-    r = VisualAnalysisReport(
+def test_visual_observation_round_trip() -> None:
+    r = VisualObservation(
         time_range_start=0.0,
         time_range_end=30.0,
         overall_visual_state="Baseline",
         detected_anomalies=[_vis_event()],
         contradiction_context="Stable until ~5 s, then a brief blink cluster.",
     )
-    assert VisualAnalysisReport.model_validate(r.model_dump()) == r
+    assert VisualObservation.model_validate(r.model_dump()) == r
 
 
-def test_audio_analysis_report_round_trip() -> None:
-    r = AudioAnalysisReport(
+def test_audio_observation_round_trip() -> None:
+    r = AudioObservation(
         time_range_start=0.0,
         time_range_end=30.0,
         overall_vocal_state="Baseline_Calm",
         detected_anomalies=[_aud_event()],
         contradiction_context="One brief pitch tightening at 10 s.",
     )
-    assert AudioAnalysisReport.model_validate(r.model_dump()) == r
+    assert AudioObservation.model_validate(r.model_dump()) == r
 
 
-def test_vocab_analysis_report_round_trip() -> None:
-    r = VocabularyAnalysisReport(
+def test_vocab_observation_round_trip() -> None:
+    r = VocabObservation(
         time_range_start=0.0,
         time_range_end=30.0,
         overall_verbal_state="Baseline_Fluent",
         detected_anomalies=[_voc_event()],
         contradiction_context="One pause at 14 s.",
     )
-    assert VocabularyAnalysisReport.model_validate(r.model_dump()) == r
+    assert VocabObservation.model_validate(r.model_dump()) == r
 
 
-def test_cross_modal_insight() -> None:
-    c = CrossModalInsight(
-        timestamp_start=5.0,
-        timestamp_end=7.0,
-        spoken_content="I have a lot of experience in ML.",
-        anomalies_detected=["Visual: Rapid Blink", "Audio: Pitch Drop"],
-        behavioral_analysis="Pitch dropped + blinking spiked while claiming ML experience.",
-        suspicion_level="High",
+class TestCrossModalInsight:
+    def test_round_trip(self) -> None:
+        c = CrossModalInsight(
+            timestamp_start=5.0,
+            timestamp_end=7.0,
+            spoken_content="I have a lot of experience in ML.",
+            modalities_involved=["Visual", "Audio"],
+            pattern_type="Concern",
+            significance="High",
+            observation="Pitch dropped + blinking spiked while claiming ML experience.",
+            interpretation="Strong indication of overclaim regarding the specific credential.",
+        )
+        assert CrossModalInsight.model_validate(c.model_dump()) == c
+
+    @pytest.mark.parametrize("pattern_type", ["Strength", "Concern", "Notable"])
+    def test_each_pattern_type(self, pattern_type: str) -> None:
+        c = CrossModalInsight(
+            timestamp_start=0.0,
+            timestamp_end=1.0,
+            spoken_content="Some content.",
+            modalities_involved=["Visual"],
+            pattern_type=pattern_type,  # type: ignore[arg-type]
+            significance="Low",
+            observation="Brief micro-expression.",
+            interpretation="Worth noting.",
+        )
+        assert c.pattern_type == pattern_type
+
+    def test_invalid_pattern_type(self) -> None:
+        with pytest.raises(ValidationError):
+            CrossModalInsight(
+                timestamp_start=0.0,
+                timestamp_end=1.0,
+                spoken_content="Some content.",
+                modalities_involved=["Visual"],
+                pattern_type="Suspicious",  # type: ignore[arg-type]
+                significance="Low",
+                observation="Brief micro-expression.",
+                interpretation="Worth noting.",
+            )
+
+    def test_invalid_modality(self) -> None:
+        with pytest.raises(ValidationError):
+            CrossModalInsight(
+                timestamp_start=0.0,
+                timestamp_end=1.0,
+                spoken_content="Some content.",
+                modalities_involved=["Olfactory"],  # type: ignore[list-item]
+                pattern_type="Notable",
+                significance="Low",
+                observation="Brief micro-expression.",
+                interpretation="Worth noting.",
+            )
+
+
+class TestIntegratedBehavioralReport:
+    @pytest.mark.parametrize(
+        "tone",
+        [
+            "Strong_Positive",
+            "Authentic",
+            "Mostly_Authentic",
+            "Mixed_Signals",
+            "Concerning",
+        ],
     )
-    assert CrossModalInsight.model_validate(c.model_dump()) == c
+    def test_each_window_tone(self, tone: str) -> None:
+        r = IntegratedBehavioralReport(
+            time_range_start=0.0,
+            time_range_end=10.0,
+            overall_window_tone=tone,  # type: ignore[arg-type]
+            executive_summary="Brief summary.",
+            key_insights=[],
+        )
+        assert r.overall_window_tone == tone
 
-
-def test_integrated_behavioral_report_round_trip() -> None:
-    insight = CrossModalInsight(
-        timestamp_start=5.0,
-        timestamp_end=7.0,
-        spoken_content="I built that system end-to-end.",
-        anomalies_detected=["Visual: Rapid Blink"],
-        behavioral_analysis="Brief nervousness while claiming sole authorship.",
-        suspicion_level="Medium",
-    )
-    r = IntegratedBehavioralReport(
-        time_range_start=0.0,
-        time_range_end=10.0,
-        overall_credibility="Moderate (Nervous/Recall)",
-        executive_summary="Brief nervousness early on; otherwise calm.",
-        key_insights=[insight],
-    )
-    assert IntegratedBehavioralReport.model_validate(r.model_dump()) == r
+    def test_round_trip(self) -> None:
+        insight = CrossModalInsight(
+            timestamp_start=5.0,
+            timestamp_end=7.0,
+            spoken_content="I built that system end-to-end.",
+            modalities_involved=["Visual", "Audio"],
+            pattern_type="Concern",
+            significance="Medium",
+            observation="Brief nervousness while claiming sole authorship.",
+            interpretation="May have overstated their solo contribution.",
+        )
+        r = IntegratedBehavioralReport(
+            time_range_start=0.0,
+            time_range_end=10.0,
+            overall_window_tone="Mixed_Signals",
+            executive_summary="Brief nervousness early on; otherwise calm.",
+            key_insights=[insight],
+        )
+        assert IntegratedBehavioralReport.model_validate(r.model_dump()) == r
 
 
 def test_final_report_round_trip() -> None:

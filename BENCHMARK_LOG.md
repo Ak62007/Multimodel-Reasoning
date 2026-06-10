@@ -132,3 +132,50 @@ This file is co-maintained:
 - User: <FILL IN — any retries / restarts / interventions worth noting>
 
 ---
+
+## M4 — Agentic layer
+
+- Completed: 2026-06-10
+- Commit: (see `git rev-list -n 1 m4-done`)
+- Tag: m4-done
+- Telemetry source used (logfire / Factory UI / other): <FILL IN>
+
+### This-session subtotal (if Factory telemetry is session-scoped; else same as Run total)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- Session subtotal: <FILL IN>
+
+### Run total (cumulative across the entire benchmarking run)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- **Run total: <FILL IN>**
+
+### Notes
+
+- Agent: implemented the full §9 agentic layer. Renamed observer schemas
+  to `VisualObservation` / `AudioObservation` / `VocabObservation` and
+  reframed `CrossModalInsight` around `pattern_type` (Strength / Concern /
+  Notable), `significance` (renamed from `suspicion_level`), and split
+  `behavioral_analysis` into `observation` + `interpretation`.
+  `IntegratedBehavioralReport.overall_credibility` was replaced with
+  `overall_window_tone` (5-state literal). Revised every prompt in
+  `agents/prompts.py` to match. Implemented `agents/windows.py` (gap-1s
+  range merging), `agents/_window_slice.py` (per-window data extraction),
+  `agents/_runtime.py` (provider switch, retry-with-backoff, bounded
+  concurrency), `agents/_stub.py` (deterministic stubs), and the five
+  agent modules plus `agents/orchestrator.build_report`. Wrote 21 agent
+  tests (`tests/agents/test_agent_schemas.py`,
+  `test_orchestrator_with_stub.py`) all passing.
+  **Manual end-to-end run against real Groq** with the tiny fixture
+  succeeded — two Concern patterns detected, judge produced a real
+  coaching report, captured verbatim in `DECISIONS.md`. All four
+  acceptance checks (ruff, ruff format, mypy, pytest 173) green.
+- User: <FILL IN — any retries / restarts / interventions worth noting>
+
+---

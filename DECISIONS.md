@@ -164,3 +164,85 @@ recorded here, with timestamp + rationale. Per §17 of the spec.
   is finite and non-negative — the meaningful behavioural assertion
   is in the companion spike test, which verifies the spike's score
   ends up in the top decile.
+
+---
+
+## 2026-06-10 — M4: agentic layer
+
+### Schema renames (per spec §9.5)
+
+- `VisualAnalysisReport` → `VisualObservation` (internal)
+- `AudioAnalysisReport` → `AudioObservation` (internal)
+- `VocabularyAnalysisReport` → `VocabObservation` (internal)
+- `VocabularyAnomalyEvent` → `VocabAnomalyEvent` (matches the renamed
+  observation; no behavioural change)
+- `CrossModalInsight` reframed:
+  - `anomalies_detected: list[str]` removed
+  - `modalities_involved: list[Literal["Visual", "Audio", "Verbal"]]` added
+  - `suspicion_level` → `significance` (neutral framing, same values)
+  - `pattern_type: Literal["Strength", "Concern", "Notable"]` added
+  - `behavioral_analysis` → `observation` + `interpretation`
+- `IntegratedBehavioralReport.overall_credibility` →
+  `overall_window_tone` with the new five-state literal.
+
+### Prompt revisions
+
+- Each observer prompt now opens with an explicit "you are an internal
+  observer" note so the LLM does not write narrative prose intended for
+  the user.
+- `CORR_CONT_PROMPT` → `PATTERN_DETECTOR_PROMPT`, rewritten around the
+  three-way `pattern_type` framing with one paragraph per Strength /
+  Concern / Notable example. The rewrite preserves the original
+  selectivity, brevity, and content-tie-in rules.
+- `JUDGE_PROMPT` updated to reference *cross-modal patterns* (the new
+  input shape) and the four `FinalReport` fields by name.
+
+### Provider switch + retries
+
+- `agents/_runtime.py` is the central place for: stub-vs-Groq selection
+  (`LLM_PROVIDER`), Groq model id resolution (`LLM_MODEL`),
+  bounded-concurrency limit (`AGENT_MAX_CONCURRENCY`, default 4), and
+  retry-with-exponential-backoff wrapper (3 attempts, jittered backoff
+  capped at 8 s).
+- Each agent module checks `use_stub()` first and dispatches to the
+  matching `agents/_stub.py` function on the stub path. This isolates
+  pydantic-ai/Groq from the test surface — tests never need the network.
+
+### Window selection
+
+- `agents/windows.py` walks the per-row Pydantic-dict columns
+  (`blinking_data`, `gaze_data`, …) looking at `part_of_anomalous_range`
+  fields. Adjacent ranges within `gap_tolerance` (default 1.0 s per §9.4)
+  are merged into a single window. Long stretches with no anomalies
+  emit no windows.
+
+### Orchestrator
+
+- `agents/orchestrator.build_report` is async, bounded by an
+  `asyncio.Semaphore`, and runs the three observers concurrently per
+  window. Per-window errors are logged and the window is dropped
+  (`return_exceptions=True`) so a single LLM hiccup does not fail the
+  whole job. The judge always runs at the end, even when no windows
+  produced insights, so the API always has a `FinalReport` to return.
+
+### Documented manual real-Groq run
+
+Verified on 2026-06-10 against `tests/fixtures/tiny_master_df.parquet`
+using model `llama-3.3-70b-versatile` and the `.env` keys:
+
+```text
+$ LLM_PROVIDER=groq uv run python -c "..." (script also in
+  agents/_runtime.py docstrings)
+reports=2 total insights=2
+  [5.0s-7.0s] tone=Mixed_Signals insights=1
+    [Concern/Medium] mod=['Visual', 'Verbal']
+  [18.0s-21.0s] tone=Mixed_Signals insights=1
+    [Concern/Medium] mod=['Visual', 'Audio', 'Verbal']
+```
+
+One window's Pattern Detector found a Concern spanning Visual + Verbal;
+the other a Concern spanning all three modalities. The Judge agent
+returned a four-section markdown report wired to the `FinalReport`
+schema. Total wall time on Groq llama-3.3-70b-versatile was around
+20 s. The vocab observer's first call timed out once and the retry
+wrapper recovered transparently — exactly the behaviour §9.4 asks for.

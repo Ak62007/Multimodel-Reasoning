@@ -1,13 +1,27 @@
-"""Pydantic schemas for agent outputs.
+"""Pydantic schemas for the MMR agentic layer.
 
-The three observer schemas (``VisualAnalysisReport``, ``AudioAnalysisReport``,
-``VocabularyAnalysisReport``) are internal scaffolding — they are consumed only
-by the Pattern Detector and are not exposed via the API. The public surface is
-``IntegratedBehavioralReport`` and ``FinalReport``.
+Public surface
+--------------
+Only :class:`IntegratedBehavioralReport` and :class:`FinalReport` are
+exposed through the FastAPI backend (M5). Everything else in this module
+is internal scaffolding consumed by the Pattern Detector, not surfaced
+to the frontend.
 
-Schema *content* changes (renames, ``pattern_type`` field, relaxed
-``overall_credibility`` literal, etc.) land in M4. M1 keeps content as-is to
-preserve behaviour during the refactor.
+Schema changes for M4 vs. the M1 carry-over
+-------------------------------------------
+- ``VisualAnalysisReport`` -> :class:`VisualObservation`         (internal)
+- ``AudioAnalysisReport``  -> :class:`AudioObservation`          (internal)
+- ``VocabularyAnalysisReport`` -> :class:`VocabObservation`      (internal)
+- :class:`CrossModalInsight` is reframed:
+    * ``anomalies_detected: list[str]`` removed
+    * ``modalities_involved: list[Literal["Visual", "Audio", "Verbal"]]`` added
+    * ``suspicion_level`` renamed ``significance`` (neutral framing)
+    * ``pattern_type: Literal["Strength", "Concern", "Notable"]`` added
+    * ``behavioral_analysis`` split into ``observation`` + ``interpretation``
+- :class:`IntegratedBehavioralReport`:
+    * ``overall_credibility`` -> ``overall_window_tone`` with a richer
+      five-state literal (Authentic / Mostly_Authentic / Mixed_Signals /
+      Concerning / Strong_Positive)
 """
 
 from __future__ import annotations
@@ -16,85 +30,90 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+# ---------------------------------------------------------------------------
+# Internal observer scaffolding — not exposed by the API.
+# ---------------------------------------------------------------------------
+
 
 class VisualAnomalyEvent(BaseModel):
-    """A distinct behavioral event detected within the time range."""
+    """A distinct visual event inside the analysis window."""
 
-    timestamp_start: float = Field(..., description="Start time of the specific anomaly event.")
-    timestamp_end: float = Field(..., description="End time of the specific anomaly event.")
+    timestamp_start: float = Field(..., description="Start time of the visual event.")
+    timestamp_end: float = Field(..., description="End time of the visual event.")
     feature_type: Literal["Blink", "Gaze", "Jaw", "Smile"] = Field(
-        ..., description="The facial feature involved."
+        ..., description="Which facial feature the event was observed on."
     )
     behavioral_tag: str = Field(
         ...,
-        description="Psychological interpretation (e.g., 'Rapid Blinking', 'Jaw Clench', 'Fixed Stare').",
+        description="Short interpretation, e.g. 'Rapid Blinking', 'Jaw Clench', 'Fixed Stare'.",
     )
     intensity_score: float = Field(
-        ...,
-        description="The max absolute rz_score observed during this event (indicates severity).",
+        ..., description="Max absolute rz_score observed during the event."
     )
     is_sustained: bool = Field(
         ...,
-        description="True if this was a continuous anomaly (state shift), False if it was a micro-expression.",
+        description="True if the anomaly was continuous; False if it was a micro-expression.",
     )
 
 
-class VisualAnalysisReport(BaseModel):
-    """The final summarized report from the Visual Agent."""
+class VisualObservation(BaseModel):
+    """Internal observer output. Not exposed via API. Consumed only by the Pattern Detector."""
 
     time_range_start: float
     time_range_end: float
 
     overall_visual_state: Literal[
-        "Baseline", "Low_Stress", "High_Stress", "Deceptive_Cluster", "Emotional_Breakthrough"
+        "Baseline",
+        "Low_Stress",
+        "High_Stress",
+        "Deceptive_Cluster",
+        "Emotional_Breakthrough",
     ] = Field(
-        ..., description="The holistic classification of the subject's behavior during this window."
+        ...,
+        description="Holistic classification of the subject's visible behaviour in this window.",
     )
 
     detected_anomalies: list[VisualAnomalyEvent] = Field(
         default_factory=list,
-        description="List of all specific anomalous events identified. Empty list implies normal behavior.",
+        description="Specific visual events identified inside the window.",
     )
 
     contradiction_context: str = Field(
         ...,
-        description="A concise narrative summary explicitly highlighting what *changed*. "
-        "Example: 'Subject maintained baseline until t=78s, where a sustained high-intensity blink cluster (rz=3.7) occurred, coincident with jaw micro-movements.'",
+        description=(
+            "Narrative summary of what *changed* visually in this window. "
+            "Used by the Pattern Detector to correlate with audio + verbal."
+        ),
     )
 
 
 class AudioAnomalyEvent(BaseModel):
-    """A distinct paralinguistic event detected within the time range."""
+    """A distinct paralinguistic event inside the analysis window."""
 
-    timestamp_start: float = Field(..., description="Start time of the specific anomaly event.")
-    timestamp_end: float = Field(..., description="End time of the specific anomaly event.")
+    timestamp_start: float = Field(..., description="Start time of the audio event.")
+    timestamp_end: float = Field(..., description="End time of the audio event.")
     feature_type: Literal["Loudness", "Pitch", "Expressiveness"] = Field(
-        ..., description="The acoustic dimension involved."
+        ..., description="Which acoustic dimension the event was observed on."
     )
-
     behavioral_tag: str = Field(
         ...,
-        description="Psychological interpretation. Examples: 'Sudden Whisper', 'Monotone Dissociation', 'High-Pitch Stress', 'Vocal Fry'.",
+        description="Short interpretation, e.g. 'Sudden Whisper', 'High-Pitch Stress', 'Vocal Fry'.",
     )
-
     intensity_score: float = Field(
-        ...,
-        description="The max absolute rz_score observed during this event. Higher = more intense deviation.",
+        ..., description="Max absolute rz_score observed during the event."
     )
-
     is_sustained: bool = Field(
         ...,
-        description="True if this was a continuous anomaly (state shift), False if it was a momentary break.",
+        description="True if continuous; False if it was a momentary break.",
     )
 
 
-class AudioAnalysisReport(BaseModel):
-    """The final summarized report from the Audio Agent."""
+class AudioObservation(BaseModel):
+    """Internal observer output. Not exposed via API. Consumed only by the Pattern Detector."""
 
     time_range_start: float
     time_range_end: float
 
-    # The "Vibe" of the voice
     overall_vocal_state: Literal[
         "Baseline_Calm",
         "Suppressed/Timid",
@@ -102,57 +121,47 @@ class AudioAnalysisReport(BaseModel):
         "Stressed/Tight",
         "Robotic/Rehearsed",
         "Volatile",
-    ] = Field(
-        ...,
-        description="The holistic classification of the subject's vocal demeanor during this window.",
-    )
+    ] = Field(..., description="Holistic classification of the subject's voice in this window.")
 
-    # Detailed breakdown
-    detected_anomalies: list[AudioAnomalyEvent] = Field(
-        default_factory=list,
-        description="List of all specific paralinguistic anomalies identified. Empty list implies normal speech.",
-    )
+    detected_anomalies: list[AudioAnomalyEvent] = Field(default_factory=list)
 
-    # Synthesis for the next agent
     contradiction_context: str = Field(
         ...,
-        description="A concise narrative summary explicitly highlighting acoustic shifts. "
-        "Example: 'Subject's volume dropped significantly (rz=-18) at 57s, transitioning into a whisper while pitch flattened, suggesting sudden hesitation or secrecy.'",
+        description=(
+            "Narrative summary of what *changed* in the voice during this window. "
+            "Used by the Pattern Detector to correlate with visual + verbal."
+        ),
     )
 
 
-class VocabularyAnomalyEvent(BaseModel):
-    """A distinct linguistic or cognitive event detected within the time range."""
+class VocabAnomalyEvent(BaseModel):
+    """A distinct linguistic / cognitive event inside the analysis window."""
 
-    timestamp_start: float = Field(..., description="Start time of the specific anomaly event.")
-    timestamp_end: float = Field(..., description="End time of the specific anomaly event.")
+    timestamp_start: float = Field(..., description="Start time of the linguistic event.")
+    timestamp_end: float = Field(..., description="End time of the linguistic event.")
     feature_type: Literal["SpeakingRate", "FillerUsage", "Pauses"] = Field(
-        ..., description="The linguistic dimension involved."
+        ..., description="Linguistic dimension."
     )
-
     behavioral_tag: str = Field(
         ...,
-        description="Psycholinguistic interpretation. Examples: 'High Cognitive Load', 'Rapid-Fire Defense', 'Stalling/Hesitation', 'Rehearsed Speech'.",
+        description="Short interpretation, e.g. 'High Cognitive Load', 'Stalling', 'Rehearsed Speech'.",
     )
-
     intensity_score: float = Field(
         ...,
-        description="The magnitude of the deviation. Use rz_score for WPS. For categorical anomalies (Fillers/Pauses), use 1.0 for 'abnormally high'.",
+        description="rz_score for WPS, or 1.0 for the categorical filler/pause anomalies.",
     )
-
     is_sustained: bool = Field(
         ...,
-        description="True if this was a continuous anomaly (state shift), False if it was a momentary slip.",
+        description="True if continuous; False if it was a momentary slip.",
     )
 
 
-class VocabularyAnalysisReport(BaseModel):
-    """The final summarized report from the Vocabulary Agent."""
+class VocabObservation(BaseModel):
+    """Internal observer output. Not exposed via API. Consumed only by the Pattern Detector."""
 
     time_range_start: float
     time_range_end: float
 
-    # The "Flow" of the speech
     overall_verbal_state: Literal[
         "Baseline_Fluent",
         "Cognitively_Overloaded",
@@ -160,86 +169,118 @@ class VocabularyAnalysisReport(BaseModel):
         "Guarded/Slow",
         "Disorganized",
     ] = Field(
-        ...,
-        description="The holistic classification of the subject's verbal fluency during this window.",
+        ..., description="Holistic classification of the subject's verbal fluency in this window."
     )
 
-    # Detailed breakdown
-    detected_anomalies: list[VocabularyAnomalyEvent] = Field(
-        default_factory=list,
-        description="List of all specific linguistic anomalies identified. Empty list implies normal, fluent speech.",
-    )
+    detected_anomalies: list[VocabAnomalyEvent] = Field(default_factory=list)
 
-    # Synthesis for the next agent
     contradiction_context: str = Field(
         ...,
-        description="A concise narrative summary explicitly highlighting fluency shifts. "
-        "Example: 'Subject's speech rate spiked (rz=2.6) at 114s, indicating anxiety, followed immediately by a cluster of abnormal pauses, suggesting they lost their train of thought or were fabricating.'",
+        description=(
+            "Narrative summary of what *changed* in the candidate's speech fluency in this window. "
+            "Used by the Pattern Detector to correlate with visual + audio."
+        ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Public surface — exposed by the FastAPI backend in M5.
+# ---------------------------------------------------------------------------
 
 
 class CrossModalInsight(BaseModel):
-    """A specific instance where behavior, voice, and words interact meaningfully."""
+    """A moment where behaviour across modalities + the spoken content tell a coherent story.
+
+    The Pattern Detector emits these only when they are *meaningful* —
+    routine spikes that have no cross-modal correlate are not reported.
+    """
 
     timestamp_start: float
     timestamp_end: float
 
     spoken_content: str = Field(
         ...,
-        description="A short quote of what was being said (e.g., 'I completed the ML course [*]').",
+        description="What the candidate was saying during this moment (a short quote).",
     )
 
-    anomalies_detected: list[str] = Field(
+    modalities_involved: list[Literal["Visual", "Audio", "Verbal"]] = Field(
         ...,
-        description="Brief tags of what happened (e.g., ['Visual: Rapid Blink', 'Audio: Pitch Drop', 'Verbal: Stutter']).",
+        description="Which modalities co-occurred to form this pattern.",
     )
 
-    behavioral_analysis: str = Field(
+    pattern_type: Literal["Strength", "Concern", "Notable"] = Field(
         ...,
-        description="One punchy sentence explaining the 'Tell'. Example: 'Subject's pitch dropped and blinking spiked while discussing their ML certification, indicating high anxiety or fabrication regarding this credential.'",
+        description=(
+            "What kind of pattern this is. "
+            "'Strength' = signals + content reinforce credibility. "
+            "'Concern' = signals contradict the content. "
+            "'Notable' = coaching opportunity, neither strong nor deceptive."
+        ),
     )
 
-    suspicion_level: Literal["Low", "Medium", "High"] = Field(
-        ..., description="How likely is this a sign of deception, masking, or severe stress?"
+    significance: Literal["Low", "Medium", "High"] = Field(
+        ...,
+        description="Intensity of the pattern (not a moral judgement — see ``pattern_type``).",
+    )
+
+    observation: str = Field(
+        ...,
+        description="One sentence — what happened across the modalities.",
+    )
+
+    interpretation: str = Field(
+        ...,
+        description="One sentence — what the pattern says about the candidate.",
     )
 
 
 class IntegratedBehavioralReport(BaseModel):
-    """The Master Report for the time window."""
+    """The Pattern Detector's output for a single analysis window. Public."""
 
     time_range_start: float
     time_range_end: float
 
-    overall_credibility: Literal[
-        "High Credibility (Authentic)",
-        "Moderate (Nervous/Recall)",
-        "Low Credibility (Masking/Deceptive)",
-    ] = Field(..., description="The overall verdict for this specific time block.")
+    overall_window_tone: Literal[
+        "Strong_Positive",
+        "Authentic",
+        "Mostly_Authentic",
+        "Mixed_Signals",
+        "Concerning",
+    ] = Field(
+        ...,
+        description="Holistic tone of this window. Replaces the older binary 'credibility' framing.",
+    )
 
     executive_summary: str = Field(
         ...,
-        description="Maximum 2 sentences summarizing their behavior and how they handled the topics discussed.",
+        description="Maximum two sentences summarising the candidate's behaviour in this window.",
     )
 
     key_insights: list[CrossModalInsight] = Field(
         default_factory=list,
-        description="Chronological list of the specific 'Tells' found. Leave empty if completely baseline/normal.",
+        description=(
+            "Cross-modal patterns found in this window. "
+            "Empty list means no meaningful pattern was found."
+        ),
     )
 
 
 class FinalReport(BaseModel):
+    """The Judge agent's executive coaching report. Public."""
+
     executive_summary: str = Field(
         ...,
+        description="Holistic 3-4 sentence overview of the candidate's interview performance.",
     )
-
     behavioral_strengths: str = Field(
         ...,
+        description="What went well. Markdown allowed.",
     )
-
     vulnerabilities_and_triggers: str = Field(
         ...,
+        description="What went wrong, grouped by topic / theme. Markdown allowed.",
     )
-
     areas_for_improvement: str = Field(
         ...,
+        description="3-4 actionable pieces of coaching advice. Markdown allowed.",
     )
