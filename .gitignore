@@ -1,12 +1,51 @@
-data/
-.venv/
+# Python
 *.pyc
 __pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.coverage
+coverage.xml
+htmlcov/
+
+# Virtualenvs
+.venv/
+venv/
+
+# Jupyter
 .ipynb_checkpoints/
+
+# Models / weights
 models/*.h5
 models/*.pkl
 models/*.task
+
+# Media artefacts
 *.mp4
 *.avi
+*.mov
+*.webm
 *.wav
+*.mp3
+
+# Data + runtime artefacts (everything under data/ except the dir itself)
+data/
+
+# Environment
 .env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/

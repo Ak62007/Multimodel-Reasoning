@@ -1,0 +1,1 @@
+"""Per-resource FastAPI routers."""
