@@ -1,56 +1,70 @@
+"""Per-window acoustic feature extraction.
+
+Slices the audio file into ``segment_length``-second windows and computes:
+
+* ``audio_rms`` — RMS energy (a proxy for loudness / volume).
+* ``audio_pitch_avg`` — mean fundamental frequency in Hz over the window.
+* ``audio_pitch_var`` — pitch standard deviation in Hz (expressiveness).
+* ``is_silent`` — True when RMS falls below the noise floor.
+
+The default window of 0.5 s matches the rest of the pipeline. Column names
+were previously ``audio_rms(volumn)`` and ``audio_pitch_var(expressiveness)``;
+those parens/typo names were retired in M2 (see DECISIONS.md).
+"""
+
+from __future__ import annotations
+
+import logging
 import os
+from pathlib import Path
 
 import librosa
 import numpy as np
 import pandas as pd
 
+logger = logging.getLogger(__name__)
 
-def analyze_audio_layers(audio_path: str, segment_length: float = 0.5) -> pd.DataFrame:
+
+def analyze_audio_layers(
+    audio_path: str | Path,
+    segment_length: float = 0.5,
+    *,
+    silence_threshold: float = 0.005,
+) -> pd.DataFrame | None:
+    """Extract per-window acoustic features.
+
+    Args:
+        audio_path: Path to a WAV audio file.
+        segment_length: Window size in seconds. Default 0.5 s.
+        silence_threshold: RMS below which a window is flagged as silent.
+
+    Returns:
+        Dataframe with one row per window, sorted by ``Time``. ``None`` if
+        the audio file does not exist.
     """
-    Input:
-        audio_path: path to the audio file
-        segment_length: time window in secs (same as video dataframe)
-    Output:
-        au_data: dataframe with TS features for analysis (Ready to go to the data analysis pipeline)
-    """
-    # check is the audio file exists
+    audio_path = str(audio_path)
     if not os.path.exists(audio_path):
-        print(f"Error: {audio_path} does not exit")
+        logger.error("Audio file not found: %s", audio_path)
         return None
 
-    # loading audio file
     y, sr = librosa.load(audio_path, sr=None)
-
-    # total duration
     total_duration = librosa.get_duration(y=y, sr=sr)
 
-    au_data = []
+    rows: list[dict[str, float | bool]] = []
 
-    # iterating through the audio chunks
     for t in np.arange(0, total_duration, segment_length):
-        # calculating the starting and ending indexes for this chunk
         start_sample = int(t * sr)
         end_sample = int((t + segment_length) * sr)
-
-        # getting the chunk for this iteration
         chunk = y[start_sample:end_sample]
 
-        # check if the file ended
         if len(chunk) == 0:
             break
 
-        # FEATURE - 1: AMPLITUDE (Confidence/Volume)
-        rms = np.mean(librosa.feature.rms(y=chunk))
+        rms = float(np.mean(librosa.feature.rms(y=chunk)))
+        is_silent = rms < silence_threshold
 
-        # FEATURE - 2: SILENCE DETECTION
-        # Threshold: 0.005 is a standard "noise floor" for webcams
-        is_silent = rms < 0.005
-
-        # FEATURE 3 & 4: PITCH TRACKING (Monotone vs Expressive)
-        avg_pitch = 0
-        pitch_var = 0
-
-        # if not silent
+        avg_pitch = 0.0
+        pitch_var = 0.0
         if not is_silent:
             f0, _voiced_flag, _ = librosa.pyin(
                 chunk,
@@ -59,28 +73,22 @@ def analyze_audio_layers(audio_path: str, segment_length: float = 0.5) -> pd.Dat
                 sr=sr,
                 frame_length=2048,
             )
-
-            # filtering out the NaNs (moments of unvoiced sound)
             valid_pitch = f0[~np.isnan(f0)]
-
             if len(valid_pitch) > 0:
-                avg_pitch = np.mean(valid_pitch)
-                # I think this is super cool this pitch var effectively measures you expressiveness
-                pitch_var = np.std(valid_pitch)
+                avg_pitch = float(np.mean(valid_pitch))
+                pitch_var = float(np.std(valid_pitch))
 
-        # creating the row
-        au_data.append(
+        rows.append(
             {
-                "Time": round(t, 2),
-                "audio_rms(volumn)": round(rms, 4),
+                "Time": round(float(t), 2),
+                "audio_rms": round(rms, 4),
                 "audio_pitch_avg": round(avg_pitch, 2),
-                "audio_pitch_var(expressiveness)": round(pitch_var, 2),
+                "audio_pitch_var": round(pitch_var, 2),
                 "is_silent": is_silent,
             }
         )
 
-    # converting into a dataframe
-    au_data = pd.DataFrame(au_data)
-    au_data = au_data.sort_values("Time").reset_index(drop=True)
-
-    return au_data
+    df = pd.DataFrame(rows)
+    df = df.sort_values("Time").reset_index(drop=True)
+    logger.info("Computed %d audio technical rows", len(df))
+    return df

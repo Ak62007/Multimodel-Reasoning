@@ -1,11 +1,15 @@
+from __future__ import annotations
+
+import logging
 import math
 from pathlib import Path
 
-# import numpy as np
 import mediapipe as mp
 import pandas as pd
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+
+logger = logging.getLogger(__name__)
 
 
 def get_coordinates(landmarks: list, idx: int) -> tuple:
@@ -85,77 +89,81 @@ def calculate_gaze_ratios(landmarks: list) -> tuple:
     return (h_ratio, v_ratio)
 
 
-def face_analysis_data(model_path, images_path) -> pd.DataFrame:
-    """
-    Inputs:
-        model_path - mediapipe model weights file path
-        images_path - path of the files where we saved the frame by frame images of the video.
+def face_analysis_data(
+    model_path: str | Path,
+    images_path: str | Path,
+) -> pd.DataFrame | None:
+    """Run MediaPipe FaceLandmarker on every JPEG in ``images_path``.
 
-    Output:
-        fa_data - Time-Series data about the face emotions changing frame by frame in the video.
-    """
-    # Initializing the DataFrame
-    fa_data = []
+    The frames are expected to follow the ``<index>_ts_<seconds>.jpg``
+    naming produced by :func:`pipeline.video.frame_extractor.extract_frames`.
 
+    Args:
+        model_path: Path to the ``face_landmarker.task`` weights file.
+        images_path: Directory of per-frame JPEGs.
+
+    Returns:
+        Dataframe sorted by ``Time`` with ``h_ratio``, ``v_ratio`` and the
+        52 MediaPipe blendshape scores per row. Frames where no face was
+        detected contribute a row with only ``Time`` populated. ``None`` if
+        the images directory does not exist.
+    """
     folder = Path(images_path)
-
     if not folder.exists():
-        print(f"Folder {images_path} does not exist")
-        return
+        logger.error("Folder %s does not exist", images_path)
+        return None
 
-    # This just let's mediapipe know where is the .task(model) weights of the model
-    base_options = python.BaseOptions(model_asset_path=model_path)
-
-    # Start the Face detector engine
+    base_options = python.BaseOptions(model_asset_path=str(model_path))
     options = vision.FaceLandmarkerOptions(
         base_options=base_options,
         output_face_blendshapes=True,
-        # output_face_landmarks=True,
         num_faces=1,
         min_face_detection_confidence=0.5,
         running_mode=vision.RunningMode.IMAGE,
     )
-
-    # initialize the detector
     detector = vision.FaceLandmarker.create_from_options(options)
 
-    # iterating from the image paths
+    rows: list[dict[str, float]] = []
+    missing = 0
+
     for filepath in folder.iterdir():
-        timing = float(filepath.stem.split("_ts_")[1])
+        if filepath.suffix.lower() not in {".jpg", ".jpeg", ".png"}:
+            continue
+        try:
+            timing = float(filepath.stem.split("_ts_")[1])
+        except (IndexError, ValueError):
+            logger.warning("Skipping frame with unparseable timestamp: %s", filepath.name)
+            continue
+
         image = mp.Image.create_from_file(filepath.as_posix())
         results = detector.detect(image)
 
         if not results.face_landmarks or len(results.face_landmarks) == 0:
-            print(f"no face detected in the frame : {filepath.as_posix()}")
-            row = {
-                "Time": timing,
-                # 'h_ratio': np.nan,
-                # 'v_ratio': np.nan,
-            }
-
-            fa_data.append(row)
+            missing += 1
+            rows.append({"Time": timing})
             continue
 
         landmarks = results.face_landmarks[0]
         h_gaze_ratio, v_gaze_ratio = calculate_gaze_ratios(landmarks=landmarks)
 
-        if results.face_blendshapes and len(results.face_blendshapes) > 0:
-            blend_shapes = results.face_blendshapes[0]
-        else:
-            blend_shapes = []
+        blend_shapes = (
+            results.face_blendshapes[0]
+            if results.face_blendshapes and len(results.face_blendshapes) > 0
+            else []
+        )
 
-        # filling the dataframe
-        row = {"Time": timing, "h_ratio": h_gaze_ratio, "v_ratio": v_gaze_ratio}
+        row: dict[str, float] = {
+            "Time": timing,
+            "h_ratio": h_gaze_ratio,
+            "v_ratio": v_gaze_ratio,
+        }
+        for feature in blend_shapes:
+            row[feature.category_name] = feature.score
+        rows.append(row)
 
-        if len(blend_shapes) == 0:
-            fa_data.append(row)
-        else:
-            for feature in blend_shapes:
-                row[feature.category_name] = feature.score
-            fa_data.append(row)
+    if missing:
+        logger.info("No face detected in %d / %d frames", missing, len(rows))
 
-    # Let's build the dataframe
-    fa_data = pd.DataFrame(fa_data)
-    fa_data = fa_data.sort_values("Time").reset_index(drop=True)
-
-    return fa_data
+    df = pd.DataFrame(rows)
+    df = df.sort_values("Time").reset_index(drop=True)
+    return df

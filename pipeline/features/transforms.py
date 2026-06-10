@@ -1,5 +1,33 @@
+"""Per-row feature transforms and master-dataframe assembly.
+
+Two pieces live here:
+
+1. **Raw feature helpers** (``blink_data``, ``gaze_data``, ``jaw_data``,
+   ``smile_data``, ``audio_metrics_from_raw``) convert each row's raw
+   blendshape / acoustic values into intermediate dictionaries.
+
+2. **Master-dataframe assembly** (``compute_raw_features``,
+   ``feature_engineering``) wraps those helpers into the two passes the
+   pipeline runs:
+
+   - ``compute_raw_features`` (used to be ``mode="training"``) emits one
+     numeric row per merged-master row containing the derived features
+     that feed smoothing + anomaly detection.
+   - ``feature_engineering`` (used to be ``mode="evaluation"``) consumes
+     the smoothed + RZ'd dataframe plus the anomaly bookkeeping dicts
+     and emits the per-row Pydantic-dict cells that downstream agents
+     decode.
+
+The split lets us type both passes precisely; the previous
+``mode`` parameter was the source of every ``Any | dict`` widening that
+mypy flagged in M1.
+"""
+
+from __future__ import annotations
+
+import logging
 import math
-from typing import Literal
+from typing import Any
 
 import librosa
 import numpy as np
@@ -18,105 +46,105 @@ from pipeline.schemas import (
     Smile,
 )
 
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Per-row helpers
+# ---------------------------------------------------------------------------
+
+
+def blink_intensity_only(
+    eye_blink_left: float,
+    eye_blink_right: float,
+    eye_squint_left: float,
+    eye_squint_right: float,
+    blink_weight: float = 0.8,
+    squint_weight: float = 0.2,
+) -> float:
+    """Average eyelid closure (used as ``blink_intensity``)."""
+    left = (eye_blink_left * blink_weight) + (eye_squint_left * squint_weight)
+    right = (eye_blink_right * blink_weight) + (eye_squint_right * squint_weight)
+    return (left + right) / 2.0
+
 
 def blink_data(
-    eyeblinkleft: float,
-    eyeblinkright: float,
-    eyesquintleft: float,
-    eyesquintright: float,
-    blinkweigth: float = 0.8,
-    squintweigth: float = 0.2,
-    mode: Literal["training", "evaluation"] = "training",
-) -> dict | float:
-    """given the data this function returns Blink object that given info about the blinking of the user
-
-    Args:
-        eyeblinkleft (float): column: eyeBlinkLeft data
-        eyeblinkright (float): column: eyeBlinkRight data
-        eyesquintleft (float): column: eyeSquintLeft data
-        eyesquintright (float): column: eyeSquintRight data
-        blinkweigth (float, optional): weight on the blink. Defaults to 0.8.
-        squintweigth (float, optional): weight on the squint. Defaults to 0.2.
-
-    Returns:
-        Blink: return Blink object or intensity of blink
-    """
-    left_closure = (eyeblinkleft * blinkweigth) + (eyesquintleft * squintweigth)
-    right_closure = (eyeblinkright * blinkweigth) + (eyesquintright * squintweigth)
-
-    avg_closure = (left_closure + right_closure) / 2
-
-    if mode == "training":
-        return avg_closure
-    else:
-        is_closing = avg_closure > 0.5
-
-        asymmetry = abs(left_closure - right_closure)
-
-        result = {"blinking": is_closing, "asymmetry": asymmetry, "intensity": avg_closure}
-        return result
+    eye_blink_left: float,
+    eye_blink_right: float,
+    eye_squint_left: float,
+    eye_squint_right: float,
+    blink_weight: float = 0.8,
+    squint_weight: float = 0.2,
+) -> dict[str, float | bool]:
+    """Full per-row blink dict (intensity, asymmetry, ``is_blinking``)."""
+    left = (eye_blink_left * blink_weight) + (eye_squint_left * squint_weight)
+    right = (eye_blink_right * blink_weight) + (eye_squint_right * squint_weight)
+    intensity = (left + right) / 2.0
+    return {
+        "intensity": intensity,
+        "asymmetry": abs(left - right),
+        "is_blinking": intensity > 0.5,
+    }
 
 
-def gaze_data(
+def gaze_magnitude_only(
     h_ratio: float,
-    eyelookupleft: float,
-    eyelookupright: float,
-    eyelookdownleft: float,
-    eyelookdownright: float,
+    eye_look_up_left: float,
+    eye_look_up_right: float,
+    eye_look_down_left: float,
+    eye_look_down_right: float,
     h_center: float = 0.5,
-    h_dead_zone: float = 0.08,
-    v_threshold: float = 0.15,
-    mode: Literal["training", "evaluation"] = "training",
-) -> dict | float:
-    """Gaze metrics for anomaly detection
-
-    Args:
-        h_ratio (float):
-        eyelookupleft (float):
-        eyelookupright (float):
-        eyeLookDownLeft (float):
-        eyelookdownright (float):
-        h_center (float, optional): Defaults to 0.5.
-
-    Returns: Gaze object or gaze_magnitude
-    """
-
-    # horizontal deviation
+) -> float:
+    """Composite gaze magnitude used by anomaly detection."""
     h_deviation = h_ratio - h_center
-
-    # vertical metrics
-    look_up = (eyelookupleft + eyelookupright) / 2
-    look_down = (eyelookdownleft + eyelookdownright) / 2
-
-    # Calculate intensities
+    look_up = (eye_look_up_left + eye_look_up_right) / 2.0
+    look_down = (eye_look_down_left + eye_look_down_right) / 2.0
     intensity_left = max(0.0, min(1.0, -h_deviation / 0.2))
     intensity_right = max(0.0, min(1.0, h_deviation / 0.2))
     intensity_up = min(1.0, look_up / 0.6)
     intensity_down = min(1.0, look_down / 0.6)
+    return intensity_left + intensity_right + intensity_up + intensity_down
 
-    # Gaze magnitude (useful for anomaly detection)
-    gaze_magnitude = intensity_left + intensity_right + intensity_up + intensity_down
 
-    if mode == "training":
-        return gaze_magnitude
+def gaze_data(
+    h_ratio: float,
+    eye_look_up_left: float,
+    eye_look_up_right: float,
+    eye_look_down_left: float,
+    eye_look_down_right: float,
+    h_center: float = 0.5,
+    h_dead_zone: float = 0.08,
+    v_threshold: float = 0.15,
+) -> dict[str, float | str]:
+    """Per-row gaze dict (horizontal/vertical deviations + dominant direction)."""
+    h_deviation = h_ratio - h_center
+    look_up = (eye_look_up_left + eye_look_up_right) / 2.0
+    look_down = (eye_look_down_left + eye_look_down_right) / 2.0
+    if look_up > v_threshold:
+        primary = "up"
+    elif look_down > v_threshold:
+        primary = "down"
+    elif h_deviation < -h_dead_zone:
+        primary = "left"
+    elif h_deviation > h_dead_zone:
+        primary = "right"
     else:
-        # Determine primary direction (priority: vertical > horizontal > center)
-        if look_up > v_threshold:
-            primary_direction = "up"
-        elif look_down > v_threshold:
-            primary_direction = "down"
-        elif h_deviation < -(h_dead_zone):
-            primary_direction = "left"
-        elif h_deviation > h_dead_zone:
-            primary_direction = "right"
-        else:
-            primary_direction = "center"
-        result = {
-            "horizontal_deviation": h_deviation,
-            "vertical_deviation": look_up - look_down,
-            "primary_direction": primary_direction,
-        }
-        return result
+        primary = "center"
+    return {
+        "horizontal_deviation": h_deviation,
+        "vertical_deviation": look_up - look_down,
+        "primary_direction": primary,
+    }
+
+
+def jaw_magnitude_only(
+    jaw_open: float,
+    jaw_left: float,
+    jaw_right: float,
+    jaw_forward: float,
+) -> float:
+    """Composite jaw magnitude used by anomaly detection."""
+    return jaw_open + abs(jaw_right - jaw_left) + jaw_forward
 
 
 def jaw_data(
@@ -124,88 +152,61 @@ def jaw_data(
     jaw_left: float,
     jaw_right: float,
     jaw_forward: float,
-    mode: Literal["training", "evaluation"] = "training",
-) -> dict | float:
-    """Jaw movement metrics for anomaly detection
+) -> dict[str, float | bool]:
+    """Per-row jaw dict (open/lateral/forward components + ``is_open``)."""
+    return {
+        "open": jaw_open,
+        "lateral": jaw_right - jaw_left,
+        "forward": jaw_forward,
+        "is_open": jaw_open > 0.3,
+    }
 
-    Args:
-        jaw_open (float):
-        jaw_left (float):
-        jaw_right (float):
-        jaw_forword (float):
 
-    Returns:
-        Union[Jaw, float]: jaw movement metrics or Jaw object
-    """
-    # Lateral movement
-    jaw_lateral = jaw_right - jaw_left
-
-    # Total jaw movement magnitude
-    jaw_magnitude = jaw_open + abs(jaw_lateral) + jaw_forward
-
-    if mode == "training":
-        return jaw_magnitude
-    else:
-        result = {
-            "open": jaw_open,
-            "lateral": jaw_lateral,
-            "forward": jaw_forward,
-            "magnitude": jaw_magnitude,
-            "is_open": jaw_open > 0.3,
-        }
-        return result
+def smile_intensity_only(
+    mouth_smile_left: float,
+    mouth_smile_right: float,
+    cheek_squint_left: float,
+    cheek_squint_right: float,
+    smile_weight: float = 0.7,
+    squint_weight: float = 0.3,
+) -> float:
+    """Average smile intensity used by anomaly detection."""
+    left = mouth_smile_left * smile_weight + cheek_squint_left * squint_weight
+    right = mouth_smile_right * smile_weight + cheek_squint_right * squint_weight
+    return (left + right) / 2.0
 
 
 def smile_data(
-    mouthsmileleft: float,
-    mouthsmileright: float,
-    cheeksquintleft: float,
-    cheeksquintright: float,
-    mouthstretchleft: float,
-    mouthstretchright: float,
+    mouth_smile_left: float,
+    mouth_smile_right: float,
+    cheek_squint_left: float,
+    cheek_squint_right: float,
+    mouth_stretch_left: float,
+    mouth_stretch_right: float,
     smile_weight: float = 0.7,
     squint_weight: float = 0.3,
-    mode: Literal["training", "evaluation"] = "training",
-) -> dict | float:
-    """Smile metrics for anomaly detection
+) -> dict[str, float | bool]:
+    """Per-row smile dict (intensity / asymmetry / left / right / stretch / ``is_smiling``)."""
+    left = mouth_smile_left * smile_weight + cheek_squint_left * squint_weight
+    right = mouth_smile_right * smile_weight + cheek_squint_right * squint_weight
+    intensity = (left + right) / 2.0
+    return {
+        "intensity": intensity,
+        "asymmetry": abs(left - right),
+        "left_intensity": left,
+        "right_intensity": right,
+        # Matches the legacy formula in src/sync/Feature_Transformation.py — note
+        # it intentionally uses mouth_smile_right (not mouth_stretch_right) for
+        # the second term, which was the behaviour the existing master parquets
+        # were produced with.
+        "mouth_stretch": (mouth_stretch_left + mouth_smile_right) / 2.0,
+        "is_smiling": intensity > 0.3,
+    }
 
-    Args:
-        mouthsmileleft (float):
-        mouthsmileright (float):
-        cheeksquintleft (float):
-        cheeksquintright (float):
-        mouthstretchleft (float):
-        mouthstretchright (float):
-        smile_weight (float, optional): Defaults to 0.7.
-        squint_weight (float, optional): Defaults to 0.3.
 
-    Returns:
-        Union[Smile, float]: smile intensity or Smile onject
-    """
-
-    # combined smile
-    smile_left = mouthsmileleft * smile_weight + cheeksquintleft * squint_weight
-    smile_right = mouthsmileright * smile_weight + cheeksquintright * squint_weight
-
-    # intensity and asymmetry
-    smile_intensity = (smile_left + smile_right) / 2
-    smile_asymmetry = abs(smile_left - smile_right)
-
-    # mouth_stretch
-    mouth_stretch = (mouthstretchleft + mouthsmileright) / 2
-
-    if mode == "training":
-        return smile_intensity
-    else:
-        result = {
-            "intensity": smile_intensity,
-            "asymmetry": smile_asymmetry,
-            "left_intensity": smile_left,
-            "right_intensity": smile_right,
-            "mouth_stretch": mouth_stretch,
-            "is_smiling": smile_intensity > 0.3,
-        }
-    return result
+# ---------------------------------------------------------------------------
+# Loudness / pitch categoricals (raw rz_score -> label).
+# ---------------------------------------------------------------------------
 
 
 def loudness_level(rz: float) -> str:
@@ -254,61 +255,62 @@ def wps_level(rz: float) -> str:
     return "very_fast"
 
 
+# ---------------------------------------------------------------------------
+# Pitch baseline + per-row audio metrics
+# ---------------------------------------------------------------------------
+
+
 def compute_speaker_median_pitch(
     audio_path: str,
-    speaker_segments: list,
+    speaker_segments: list[tuple[float, float]],
     sr: int = 16000,
     fmin: float = 50.0,
     fmax: float = 600.0,
-):
-    # loading the audio
-    y, sr = librosa.load(audio_path, sr=sr)
-
-    # Extracting pitch
-    f0, _voiced_flag, _ = librosa.pyin(y, fmin=fmin, fmax=fmax, sr=sr)
-
-    # Frame timestamps
-    times = librosa.times_like(f0, sr=sr)
-    pitches = []
-
-    for seg in speaker_segments:
-        start, end = seg
-
+) -> float | None:
+    """Median voiced f0 over the speaker's segments. ``None`` if unvoiced."""
+    y, sr_loaded = librosa.load(audio_path, sr=sr)
+    sr_used = int(sr_loaded)
+    f0, _voiced_flag, _ = librosa.pyin(y, fmin=fmin, fmax=fmax, sr=sr_used)
+    times = librosa.times_like(f0, sr=sr_used)
+    pitches: list[float] = []
+    for start, end in speaker_segments:
         mask = (times >= start) & (times <= end)
-        voiced_f0 = f0[mask]
-        voiced_f0 = voiced_f0[~np.isnan(voiced_f0)]
+        voiced = f0[mask]
+        voiced = voiced[~np.isnan(voiced)]
+        pitches.extend(voiced.tolist())
+    if not pitches:
+        return None
+    return round(float(np.median(pitches)), 2)
 
-        pitches.extend(voiced_f0.tolist())
 
-    return round(float(np.median(pitches)) if pitches else None, 2)
+def get_speaker_timings(
+    speaker_times: pd.DataFrame,
+    speaker: str,
+) -> list[tuple[float, float]]:
+    """Collapse a per-row speaker column into contiguous ``(start, end)`` intervals."""
+    not_null = speaker_times[~speaker_times["speaker"].isnull()]
+    if not_null.empty:
+        return []
 
+    timings: list[dict[str, tuple[float, float]]] = []
+    first = not_null.iloc[0]
+    start_time = float(first.iloc[0])
+    current_speaker = str(first.iloc[1])
 
-def get_speaker_timings(speaker_times: pd.DataFrame, speaker: str) -> list[tuple[float, float]]:
-    """Gives you the timing of the spreaker.
-
-    Args:
-        speaker_times (pd.DataFrame): dataframe with time and speaker columns
-        speaker (str): which speaker time intervals you want
-
-    Returns:
-        List[tuple[float, float]]: Returns the time interval when the speaker has spoken
-    """
-    ss = speaker_times[~speaker_times["speaker"].isnull()].iloc[0]
-    ss = tuple(ss)
-    start_time, speaker_ = ss[0].item(), ss[1]
-    timings = []
-    for row in speaker_times.iterrows():
-        row = tuple(row[1])
-        if row[1] is None:
+    last_time = start_time
+    for _, row in speaker_times.iterrows():
+        t = float(row.iloc[0])
+        sp = row.iloc[1]
+        if sp is None:
             continue
-        elif row[1] != speaker_:
-            timings.append({speaker_: (start_time, row[0])})
-            start_time = row[0]
-            speaker_ = row[1]
+        if sp != current_speaker:
+            timings.append({current_speaker: (start_time, t)})
+            start_time = t
+            current_speaker = str(sp)
+        last_time = t
 
-    timings.append({speaker_: (start_time, row[0])})
-    user_timings = [value for dic in timings for key, value in dic.items() if key == speaker]
-    return user_timings
+    timings.append({current_speaker: (start_time, last_time)})
+    return [v for d in timings for k, v in d.items() if k == speaker]
 
 
 def audio_metrics_from_raw(
@@ -317,33 +319,17 @@ def audio_metrics_from_raw(
     pitch_var_hz2: float,
     speaker_median_pitch_hz: float | None = None,
     eps: float = 1e-9,
-) -> dict[str, float | bool | str]:
-    """
-    Convert raw audio features into interpretable metrics.
-
-    Args:
-        audio_rms: RMS energy (librosa.feature.rms)
-        pitch_avg_hz: Average pitch in Hz (0 if unvoiced)
-        pitch_var_hz2: Pitch variance in Hz^2 (0 if unvoiced)
-        speaker_median_pitch_hz: Median pitch of speaker/session (recommended)
-        eps: numerical stability
-
-    Returns:
-        Dict with meaningful audio metrics
-    """
-
+) -> dict[str, float | bool]:
+    """Convert (rms, pitch_avg_hz, pitch_var_hz2) into (loudness_db, pitch_relative_st, pitch_expressiveness_st)."""
     is_voiced = pitch_avg_hz > 0.0
 
-    # Loudness (RMS → dB)
     loudness_db = 20.0 * math.log10(audio_rms + eps)
 
-    # Pitch (Hz → relative semitones)
     if is_voiced and speaker_median_pitch_hz and speaker_median_pitch_hz > 0:
         pitch_relative_st = 12.0 * math.log2(pitch_avg_hz / speaker_median_pitch_hz)
     else:
         pitch_relative_st = 0.0
 
-    # Pitch expressiveness
     pitch_expressiveness_st = math.sqrt(pitch_var_hz2) if is_voiced else 0.0
 
     return {
@@ -354,302 +340,332 @@ def audio_metrics_from_raw(
     }
 
 
-def feature_engineering(
-    c_anomalies: dict[str, list[list[float]]] | None,
-    anomalies: dict[str, list[float]] | None,
-    df: pd.DataFrame | None,
-    norm_rz_df: pd.DataFrame | None,
-    speaker_median_pitch: float,
+# ---------------------------------------------------------------------------
+# Master-dataframe assembly
+# ---------------------------------------------------------------------------
+
+
+def compute_raw_features(
+    merged: pd.DataFrame,
+    speaker_median_pitch: float | None,
     speaker: str,
-    mode: Literal["training", "evaluation"],
-):
+) -> pd.DataFrame:
+    """Take the merged stream + linguistic features and emit raw derived features.
+
+    Output columns
+    --------------
+    - ``Time`` and identifying columns are propagated through.
+    - ``blink_intensity``, ``gaze_magnitude``, ``jaw_magnitude``,
+      ``smile_intensity``: per-row visual features.
+    - ``loudness_db``, ``pitch_relative_st``, ``pitch_expressiveness_st``:
+      audio features (NaN for non-target-speaker rows).
     """
-    Fixed feature_engineering that uses Time-based lookups instead of Index-based lookups.
-    """
-    new_df = []
+    rows: list[dict[str, Any]] = []
 
-    time_series = df["Time"] if "Time" in df.columns else norm_rz_df["Time"]
-
-    for i in range(len(df)):
-        current_time = time_series.iloc[i]
-
-        # Visual Transformed data
-        t_blink_data = blink_data(
-            mode=mode,
-            eyeblinkleft=df.iloc[i]["eyeBlinkLeft"],
-            eyeblinkright=df.iloc[i]["eyeBlinkRight"],
-            eyesquintleft=df.iloc[i]["eyeSquintLeft"],
-            eyesquintright=df.iloc[i]["eyeSquintRight"],
+    for _, r in merged.iterrows():
+        blink = blink_intensity_only(
+            eye_blink_left=float(r.get("eyeBlinkLeft", 0.0)),
+            eye_blink_right=float(r.get("eyeBlinkRight", 0.0)),
+            eye_squint_left=float(r.get("eyeSquintLeft", 0.0)),
+            eye_squint_right=float(r.get("eyeSquintRight", 0.0)),
+        )
+        gaze = gaze_magnitude_only(
+            h_ratio=float(r.get("h_ratio", 0.5)),
+            eye_look_up_left=float(r.get("eyeLookUpLeft", 0.0)),
+            eye_look_up_right=float(r.get("eyeLookUpRight", 0.0)),
+            eye_look_down_left=float(r.get("eyeLookDownLeft", 0.0)),
+            eye_look_down_right=float(r.get("eyeLookDownRight", 0.0)),
+        )
+        jaw = jaw_magnitude_only(
+            jaw_open=float(r.get("jawOpen", 0.0)),
+            jaw_left=float(r.get("jawLeft", 0.0)),
+            jaw_right=float(r.get("jawRight", 0.0)),
+            jaw_forward=float(r.get("jawForward", 0.0)),
+        )
+        smile = smile_intensity_only(
+            mouth_smile_left=float(r.get("mouthSmileLeft", 0.0)),
+            mouth_smile_right=float(r.get("mouthSmileRight", 0.0)),
+            cheek_squint_left=float(r.get("cheekSquintLeft", 0.0)),
+            cheek_squint_right=float(r.get("cheekSquintRight", 0.0)),
         )
 
-        t_gaze_data = gaze_data(
-            mode=mode,
-            eyelookdownleft=df.iloc[i]["eyeLookDownLeft"],
-            eyelookdownright=df.iloc[i]["eyeLookDownRight"],
-            eyelookupleft=df.iloc[i]["eyeLookUpLeft"],
-            eyelookupright=df.iloc[i]["eyeLookUpRight"],
-            h_ratio=df.iloc[i]["h_ratio"],
-        )
+        if r.get("speaker") == speaker:
+            audio = audio_metrics_from_raw(
+                audio_rms=float(r.get("audio_rms", 0.0)),
+                pitch_avg_hz=float(r.get("audio_pitch_avg", 0.0)),
+                pitch_var_hz2=float(r.get("audio_pitch_var", 0.0)),
+                speaker_median_pitch_hz=speaker_median_pitch,
+            )
+            loudness_db = float(audio["loudness_db"])
+            pitch_relative_st = float(audio["pitch_relative_st"])
+            pitch_expressiveness_st = float(audio["pitch_expressiveness_st"])
+        else:
+            loudness_db = float("nan")
+            pitch_relative_st = float("nan")
+            pitch_expressiveness_st = float("nan")
 
-        t_jaw_data = jaw_data(
-            mode=mode,
-            jaw_open=df.iloc[i]["jawOpen"],
-            jaw_forward=df.iloc[i]["jawForward"],
-            jaw_left=df.iloc[i]["jawLeft"],
-            jaw_right=df.iloc[i]["jawRight"],
-        )
-
-        t_smile_data = smile_data(
-            mode=mode,
-            mouthsmileleft=df.iloc[i]["mouthSmileLeft"],
-            mouthsmileright=df.iloc[i]["mouthSmileRight"],
-            mouthstretchleft=df.iloc[i]["mouthStretchLeft"],
-            mouthstretchright=df.iloc[i]["mouthStretchRight"],
-            cheeksquintleft=df.iloc[i]["cheekSquintLeft"],
-            cheeksquintright=df.iloc[i]["cheekSquintRight"],
-        )
-
-        if mode == "training":
-            # Audio transformed data
-            if df.iloc[i]["speaker"] == speaker:
-                results = audio_metrics_from_raw(
-                    audio_rms=df.iloc[i]["audio_rms(volumn)"],
-                    pitch_avg_hz=df.iloc[i]["audio_pitch_avg"],
-                    pitch_var_hz2=df.iloc[i]["audio_pitch_var(expressiveness)"],
-                    speaker_median_pitch_hz=speaker_median_pitch,
-                )
-
-                loudness_db = results["loudness_db"]
-                pitch_relative_st = results["pitch_relative_st"]
-                pitch_expressiveness_st = results["pitch_expressiveness_st"]
-            else:
-                loudness_db = np.nan
-                pitch_relative_st = np.nan
-                pitch_expressiveness_st = np.nan
-
-            new_row = {
-                "blink_intensity": t_blink_data,
-                "gaze_magnitude": t_gaze_data,
-                "jaw_magnitude": t_jaw_data,
-                "smile_intensity": t_smile_data,
+        rows.append(
+            {
+                "Time": float(r["Time"]),
+                "blink_intensity": blink,
+                "gaze_magnitude": gaze,
+                "jaw_magnitude": jaw,
+                "smile_intensity": smile,
                 "loudness_db": loudness_db,
                 "pitch_relative_st": pitch_relative_st,
                 "pitch_expressiveness_st": pitch_expressiveness_st,
+                "words": r.get("words"),
+                "text_concat": r.get("text_concat"),
+                "speaker": r.get("speaker"),
+                "filler_percentage": r.get("filler_percentage"),
+                "pause_percent_pr": r.get("pause_percent_pr"),
+                "wps": r.get("wps"),
             }
+        )
 
-            new_df.append(new_row)
-        else:
-            b_is_anomalous = current_time in anomalies["blink_intensity_smooth_rz"]
-            b_continuos_anomaly = any(
-                current_time in anom for anom in c_anomalies["blink_intensity_smooth_rz"]
+    df = pd.DataFrame(rows)
+    logger.info("Computed %d rows of raw derived features", len(df))
+    return df
+
+
+# Map of feature column → master-row column for Pydantic dict assembly.
+_FEATURE_TO_OBJECT_COL: dict[str, str] = {
+    "blink_intensity_smooth_rz": "blinking_data",
+    "gaze_magnitude_smooth_rz": "gaze_data",
+    "jaw_magnitude_smooth_rz": "jaw_movement_data",
+    "smile_intensity_smooth_rz": "smile_data",
+    "loudness_db_smooth_rz": "loudness_data",
+    "pitch_relative_st_smooth_rz": "average_pitch_data",
+    "pitch_expressiveness_st_smooth_rz": "pitch_standard_deviation",
+    "wps_smooth_rz": "words_per_sec",
+    "filler_percentage": "filler_words_usage",
+    "pause_percent_pr": "pauses_taken",
+}
+
+
+def _anomaly_flags(
+    current_time: float,
+    feature: str,
+    anomalies: dict[str, list[float]],
+    c_anomalies: dict[str, list[list[float]]],
+) -> tuple[bool, bool, list[float] | None]:
+    """Look up per-row anomaly flags for a feature at ``current_time``."""
+    anom_times = anomalies.get(feature, [])
+    is_anomalous = current_time in anom_times
+
+    c_ranges = c_anomalies.get(feature, [])
+    continuous_anomaly = any(current_time in r for r in c_ranges)
+    part_of = next((r for r in c_ranges if current_time in r), None)
+    return is_anomalous, continuous_anomaly, part_of
+
+
+def feature_engineering(
+    merged: pd.DataFrame,
+    smoothed_rz: pd.DataFrame,
+    anomalies: dict[str, list[float]],
+    c_anomalies: dict[str, list[list[float]]],
+    speaker: str,
+) -> pd.DataFrame:
+    """Assemble the final master dataframe of per-row Pydantic-decodable cells.
+
+    Args:
+        merged: The merged + linguistic-feature dataframe (raw inputs).
+        smoothed_rz: ``merged`` with smoothed / robust-z columns added.
+        anomalies: ``{feature_column: [anomalous timestamps]}``.
+        c_anomalies: ``{feature_column: [[time, time, …], …]}`` of
+            continuous anomaly ranges.
+        speaker: Speaker label whose rows carry audio + verbal data.
+
+    Returns:
+        A dataframe with object columns whose JSON-decodable values map to
+        the Pydantic schemas in :mod:`pipeline.schemas`.
+    """
+    rows: list[dict[str, Any]] = []
+
+    for i in range(len(smoothed_rz)):
+        current_time = float(smoothed_rz.iloc[i]["Time"])
+
+        # ---- per-row helpers (full dicts, not just intensities) -------
+        blink_dict = blink_data(
+            eye_blink_left=float(merged.iloc[i].get("eyeBlinkLeft", 0.0)),
+            eye_blink_right=float(merged.iloc[i].get("eyeBlinkRight", 0.0)),
+            eye_squint_left=float(merged.iloc[i].get("eyeSquintLeft", 0.0)),
+            eye_squint_right=float(merged.iloc[i].get("eyeSquintRight", 0.0)),
+        )
+        gaze_dict = gaze_data(
+            h_ratio=float(merged.iloc[i].get("h_ratio", 0.5)),
+            eye_look_up_left=float(merged.iloc[i].get("eyeLookUpLeft", 0.0)),
+            eye_look_up_right=float(merged.iloc[i].get("eyeLookUpRight", 0.0)),
+            eye_look_down_left=float(merged.iloc[i].get("eyeLookDownLeft", 0.0)),
+            eye_look_down_right=float(merged.iloc[i].get("eyeLookDownRight", 0.0)),
+        )
+        jaw_dict = jaw_data(
+            jaw_open=float(merged.iloc[i].get("jawOpen", 0.0)),
+            jaw_left=float(merged.iloc[i].get("jawLeft", 0.0)),
+            jaw_right=float(merged.iloc[i].get("jawRight", 0.0)),
+            jaw_forward=float(merged.iloc[i].get("jawForward", 0.0)),
+        )
+        smile_dict = smile_data(
+            mouth_smile_left=float(merged.iloc[i].get("mouthSmileLeft", 0.0)),
+            mouth_smile_right=float(merged.iloc[i].get("mouthSmileRight", 0.0)),
+            cheek_squint_left=float(merged.iloc[i].get("cheekSquintLeft", 0.0)),
+            cheek_squint_right=float(merged.iloc[i].get("cheekSquintRight", 0.0)),
+            mouth_stretch_left=float(merged.iloc[i].get("mouthStretchLeft", 0.0)),
+            mouth_stretch_right=float(merged.iloc[i].get("mouthStretchRight", 0.0)),
+        )
+
+        # ---- visual Pydantic models ----------------------------------
+        blink_is_anom, blink_cont, blink_range = _anomaly_flags(
+            current_time, "blink_intensity_smooth_rz", anomalies, c_anomalies
+        )
+        blink = Blink(
+            intensity=float(blink_dict["intensity"]),
+            asymmetry=float(blink_dict["asymmetry"]),
+            is_blinking=bool(blink_dict["is_blinking"]),
+            rz_score=float(smoothed_rz.iloc[i].get("blink_intensity_smooth_rz", 0.0) or 0.0),
+            is_anomalous=blink_is_anom,
+            continuous_anomaly=blink_cont,
+            part_of_anomalous_range=blink_range,
+        )
+
+        gaze_is_anom, gaze_cont, gaze_range = _anomaly_flags(
+            current_time, "gaze_magnitude_smooth_rz", anomalies, c_anomalies
+        )
+        gaze = Gaze(
+            horizontal_deviation=float(gaze_dict["horizontal_deviation"]),
+            vertical_deviation=float(gaze_dict["vertical_deviation"]),
+            primary_direction=str(gaze_dict["primary_direction"]),  # type: ignore[arg-type]
+            rz_score=float(smoothed_rz.iloc[i].get("gaze_magnitude_smooth_rz", 0.0) or 0.0),
+            is_anomalous=gaze_is_anom,
+            continuous_anomaly=gaze_cont,
+            part_of_anomalous_range=gaze_range,
+        )
+
+        jaw_is_anom, jaw_cont, jaw_range = _anomaly_flags(
+            current_time, "jaw_magnitude_smooth_rz", anomalies, c_anomalies
+        )
+        jaw = Jaw(
+            open=float(jaw_dict["open"]),
+            lateral=float(jaw_dict["lateral"]),
+            forward=float(jaw_dict["forward"]),
+            is_open=bool(jaw_dict["is_open"]),
+            rz_score=float(smoothed_rz.iloc[i].get("jaw_magnitude_smooth_rz", 0.0) or 0.0),
+            is_anomalous=jaw_is_anom,
+            continuous_anomaly=jaw_cont,
+            part_of_anomalous_range=jaw_range,
+        )
+
+        smile_is_anom, smile_cont, smile_range = _anomaly_flags(
+            current_time, "smile_intensity_smooth_rz", anomalies, c_anomalies
+        )
+        smile = Smile(
+            intensity=float(smile_dict["intensity"]),
+            asymmetry=float(smile_dict["asymmetry"]),
+            left_intensity=float(smile_dict["left_intensity"]),
+            right_intensity=float(smile_dict["right_intensity"]),
+            mouth_stretch=float(smile_dict["mouth_stretch"]),
+            is_smiling=bool(smile_dict["is_smiling"]),
+            rz_score=float(smoothed_rz.iloc[i].get("smile_intensity_smooth_rz", 0.0) or 0.0),
+            is_anomalous=smile_is_anom,
+            continuous_anomaly=smile_cont,
+            part_of_anomalous_range=smile_range,
+        )
+
+        row: dict[str, Any] = {
+            "Time": current_time,
+            "blinking_data": blink.model_dump(),
+            "gaze_data": gaze.model_dump(),
+            "jaw_movement_data": jaw.model_dump(),
+            "smile_data": smile.model_dump(),
+        }
+
+        # ---- audio + verbal Pydantic models (target speaker only) ----
+        if smoothed_rz.iloc[i].get("speaker") == speaker:
+            loud_is_anom, loud_cont, loud_range = _anomaly_flags(
+                current_time, "loudness_db_smooth_rz", anomalies, c_anomalies
             )
-            b_part_of_anomalous_range = next(
-                (anom for anom in c_anomalies["blink_intensity_smooth_rz"] if current_time in anom),
-                None,
+            pa_is_anom, pa_cont, pa_range = _anomaly_flags(
+                current_time, "pitch_relative_st_smooth_rz", anomalies, c_anomalies
+            )
+            ps_is_anom, ps_cont, ps_range = _anomaly_flags(
+                current_time, "pitch_expressiveness_st_smooth_rz", anomalies, c_anomalies
+            )
+            w_is_anom, w_cont, w_range = _anomaly_flags(
+                current_time, "wps_smooth_rz", anomalies, c_anomalies
+            )
+            f_is_anom, f_cont, f_range = _anomaly_flags(
+                current_time, "filler_percentage", anomalies, c_anomalies
+            )
+            p_is_anom, p_cont, p_range = _anomaly_flags(
+                current_time, "pause_percent_pr", anomalies, c_anomalies
             )
 
-            blink = Blink(
-                intensity=t_blink_data["intensity"],
-                asymmetry=t_blink_data["asymmetry"],
-                is_blinking=t_blink_data["blinking"],
-                rz_score=norm_rz_df.iloc[i]["blink_intensity_smooth_rz"],
-                is_anomalous=b_is_anomalous,
-                continuous_anomaly=b_continuos_anomaly,
-                part_of_anomalous_range=b_part_of_anomalous_range,
+            loudness = LoudnessState(
+                level=loudness_level(  # type: ignore[arg-type]
+                    rz=float(smoothed_rz.iloc[i].get("loudness_db_smooth_rz", 0.0) or 0.0)
+                ),
+                rz_score=float(smoothed_rz.iloc[i].get("loudness_db_smooth_rz", 0.0) or 0.0),
+                is_anomalous=loud_is_anom,
+                continuous_anomaly=loud_cont,
+                part_of_anomalous_range=loud_range,
+            )
+            pitch_state = PitchState(
+                relative_level=pitch_relative_level(  # type: ignore[arg-type]
+                    rz=float(smoothed_rz.iloc[i].get("pitch_relative_st_smooth_rz", 0.0) or 0.0)
+                ),
+                rz_score=float(smoothed_rz.iloc[i].get("pitch_relative_st_smooth_rz", 0.0) or 0.0),
+                is_anomalous=pa_is_anom,
+                continuous_anomaly=pa_cont,
+                part_of_anomalous_range=pa_range,
+            )
+            pitch_std = PitchStd(
+                expressiveness=pitch_expressiveness_level(  # type: ignore[arg-type]
+                    rz=float(
+                        smoothed_rz.iloc[i].get("pitch_expressiveness_st_smooth_rz", 0.0) or 0.0
+                    )
+                ),
+                rz_score=float(
+                    smoothed_rz.iloc[i].get("pitch_expressiveness_st_smooth_rz", 0.0) or 0.0
+                ),
+                is_anomalous=ps_is_anom,
+                continuous_anomaly=ps_cont,
+                part_of_anomalous_range=ps_range,
+            )
+            wps_model = WPS(
+                speaking_rate=wps_level(  # type: ignore[arg-type]
+                    rz=float(smoothed_rz.iloc[i].get("wps_smooth_rz", 0.0) or 0.0)
+                ),
+                rz_score=float(smoothed_rz.iloc[i].get("wps_smooth_rz", 0.0) or 0.0),
+                is_anomalous=w_is_anom,
+                continuous_anomaly=w_cont,
+                part_of_anomalous_range=w_range,
+            )
+            filler = FillerPercentageIncrease(
+                filler_percentage_level="abnormally high" if f_is_anom else "normal",
+                is_anomalous=f_is_anom,
+                continuous_anomaly=f_cont,
+                part_of_anomalous_range=f_range,
+            )
+            pause = PausePercentageIncrease(
+                pause_percentage_level="abnormally high" if p_is_anom else "normal",
+                is_anomalous=p_is_anom,
+                continuous_anomaly=p_cont,
+                part_of_anomalous_range=p_range,
             )
 
-            g_is_anomalous = current_time in anomalies["gaze_magnitude_smooth_rz"]
-            g_continuos_anomaly = any(
-                current_time in anom for anom in c_anomalies["gaze_magnitude_smooth_rz"]
-            )
-            g_part_of_anomalous_range = next(
-                (anom for anom in c_anomalies["gaze_magnitude_smooth_rz"] if current_time in anom),
-                None,
-            )
-
-            gaze = Gaze(
-                horizontal_deviation=t_gaze_data["horizontal_deviation"],
-                vertical_deviation=t_gaze_data["vertical_deviation"],
-                primary_direction=t_gaze_data["primary_direction"],
-                rz_score=norm_rz_df.iloc[i]["gaze_magnitude_smooth_rz"],
-                is_anomalous=g_is_anomalous,
-                continuous_anomaly=g_continuos_anomaly,
-                part_of_anomalous_range=g_part_of_anomalous_range,
-            )
-
-            j_is_anomalous = current_time in anomalies["jaw_magnitude_smooth_rz"]
-            j_continuos_anomaly = any(
-                current_time in anom for anom in c_anomalies["jaw_magnitude_smooth_rz"]
-            )
-            j_part_of_anomalous_range = next(
-                (anom for anom in c_anomalies["jaw_magnitude_smooth_rz"] if current_time in anom),
-                None,
-            )
-
-            jaw = Jaw(
-                open=t_jaw_data["open"],
-                lateral=t_jaw_data["lateral"],
-                forward=t_jaw_data["forward"],
-                is_open=t_jaw_data["is_open"],
-                rz_score=norm_rz_df.iloc[i]["jaw_magnitude_smooth_rz"],
-                is_anomalous=j_is_anomalous,
-                continuous_anomaly=j_continuos_anomaly,
-                part_of_anomalous_range=j_part_of_anomalous_range,
-            )
-
-            s_is_anomalous = current_time in anomalies["smile_intensity_smooth_rz"]
-            s_continuos_anomaly = any(
-                current_time in anom for anom in c_anomalies["smile_intensity_smooth_rz"]
-            )
-            s_part_of_anomalous_range = next(
-                (anom for anom in c_anomalies["smile_intensity_smooth_rz"] if current_time in anom),
-                None,
-            )
-
-            smile = Smile(
-                intensity=t_smile_data["intensity"],
-                asymmetry=t_smile_data["asymmetry"],
-                left_intensity=t_smile_data["left_intensity"],
-                right_intensity=t_smile_data["right_intensity"],
-                mouth_stretch=t_smile_data["mouth_stretch"],
-                is_smiling=t_smile_data["is_smiling"],
-                rz_score=norm_rz_df.iloc[i]["smile_intensity_smooth_rz"],
-                is_anomalous=s_is_anomalous,
-                continuous_anomaly=s_continuos_anomaly,
-                part_of_anomalous_range=s_part_of_anomalous_range,
-            )
-
-            # Audio
-            if norm_rz_df.iloc[i]["speaker"] == speaker:
-                l_is_anomalous = current_time in anomalies["loudness_db_smooth_rz"]
-                l_continuos_anomaly = any(
-                    current_time in anom for anom in c_anomalies["loudness_db_smooth_rz"]
-                )
-                l_part_of_anomalous_range = next(
-                    (anom for anom in c_anomalies["loudness_db_smooth_rz"] if current_time in anom),
-                    None,
-                )
-
-                pa_is_anomalous = current_time in anomalies["pitch_relative_st_smooth_rz"]
-                pa_continuos_anomaly = any(
-                    current_time in anom for anom in c_anomalies["pitch_relative_st_smooth_rz"]
-                )
-                pa_part_of_anomalous_range = next(
-                    (
-                        anom
-                        for anom in c_anomalies["pitch_relative_st_smooth_rz"]
-                        if current_time in anom
-                    ),
-                    None,
-                )
-
-                ps_is_anomalous = current_time in anomalies["pitch_expressiveness_st_smooth_rz"]
-                ps_continuos_anomaly = any(
-                    current_time in anom
-                    for anom in c_anomalies["pitch_expressiveness_st_smooth_rz"]
-                )
-                ps_part_of_anomalous_range = next(
-                    (
-                        anom
-                        for anom in c_anomalies["pitch_expressiveness_st_smooth_rz"]
-                        if current_time in anom
-                    ),
-                    None,
-                )
-
-                w_is_anomalous = current_time in anomalies["wps_smooth_rz"]
-                w_continuos_anomaly = any(
-                    current_time in anom for anom in c_anomalies["wps_smooth_rz"]
-                )
-                w_part_of_anomalous_range = next(
-                    (anom for anom in c_anomalies["wps_smooth_rz"] if current_time in anom), None
-                )
-
-                f_is_anomalous = current_time in anomalies["filler_percentage"]
-                f_continuos_anomaly = any(
-                    current_time in anom for anom in c_anomalies["filler_percentage"]
-                )
-                f_part_of_anomalous_range = next(
-                    (anom for anom in c_anomalies["filler_percentage"] if current_time in anom),
-                    None,
-                )
-
-                p_is_anomalous = current_time in anomalies["pause_percent_pr"]
-                p_continuos_anomaly = any(
-                    current_time in anom for anom in c_anomalies["pause_percent_pr"]
-                )
-                p_part_of_anomalous_range = next(
-                    (anom for anom in c_anomalies["pause_percent_pr"] if current_time in anom), None
-                )
-
-                loudnesstate = LoudnessState(
-                    level=loudness_level(rz=norm_rz_df.iloc[i]["loudness_db_smooth_rz"]),
-                    rz_score=norm_rz_df.iloc[i]["loudness_db_smooth_rz"],
-                    is_anomalous=l_is_anomalous,
-                    continuous_anomaly=l_continuos_anomaly,
-                    part_of_anomalous_range=l_part_of_anomalous_range,
-                )
-
-                pitchstate = PitchState(
-                    relative_level=pitch_relative_level(
-                        rz=norm_rz_df.iloc[i]["pitch_relative_st_smooth_rz"]
-                    ),
-                    rz_score=norm_rz_df.iloc[i]["pitch_relative_st_smooth_rz"],
-                    is_anomalous=pa_is_anomalous,
-                    continuous_anomaly=pa_continuos_anomaly,
-                    part_of_anomalous_range=pa_part_of_anomalous_range,
-                )
-
-                pitchstd = PitchStd(
-                    expressiveness=pitch_expressiveness_level(
-                        rz=norm_rz_df.iloc[i]["pitch_expressiveness_st_smooth_rz"]
-                    ),
-                    rz_score=norm_rz_df.iloc[i]["pitch_expressiveness_st_smooth_rz"],
-                    is_anomalous=ps_is_anomalous,
-                    continuous_anomaly=ps_continuos_anomaly,
-                    part_of_anomalous_range=ps_part_of_anomalous_range,
-                )
-
-                wps = WPS(
-                    speaking_rate=wps_level(rz=norm_rz_df.iloc[i]["wps_smooth_rz"]),
-                    rz_score=norm_rz_df.iloc[i]["wps_smooth_rz"],
-                    is_anomalous=w_is_anomalous,
-                    continuous_anomaly=w_continuos_anomaly,
-                    part_of_anomalous_range=w_part_of_anomalous_range,
-                )
-
-                fillerpercentageincrease = FillerPercentageIncrease(
-                    filler_percentage_level="abnormally high" if f_is_anomalous else "normal",
-                    is_anomalous=f_is_anomalous,
-                    continuous_anomaly=f_continuos_anomaly,
-                    part_of_anomalous_range=f_part_of_anomalous_range,
-                )
-
-                pausepercentageincrease = PausePercentageIncrease(
-                    pause_percentage_level="abnormally high" if p_is_anomalous else "normal",
-                    is_anomalous=p_is_anomalous,
-                    continuous_anomaly=p_continuos_anomaly,
-                    part_of_anomalous_range=p_part_of_anomalous_range,
-                )
-
-                new_row = {
-                    "blinking_data": blink.model_dump(),
-                    "gaze_data": gaze.model_dump(),
-                    "jaw_movement_data": jaw.model_dump(),
-                    "smile_data": smile.model_dump(),
-                    "loudness_data": loudnesstate.model_dump(),
-                    "average_pitch_data": pitchstate.model_dump(),
-                    "pitch_standard_deviation": pitchstd.model_dump(),
-                    "words_per_sec": wps.model_dump(),
-                    "filler_words_usage": fillerpercentageincrease.model_dump(),
-                    "pauses_taken": pausepercentageincrease.model_dump(),
+            row.update(
+                {
+                    "loudness_data": loudness.model_dump(),
+                    "average_pitch_data": pitch_state.model_dump(),
+                    "pitch_standard_deviation": pitch_std.model_dump(),
+                    "words_per_sec": wps_model.model_dump(),
+                    "filler_words_usage": filler.model_dump(),
+                    "pauses_taken": pause.model_dump(),
                 }
-            else:
-                new_row = {
-                    "blinking_data": blink.model_dump(),
-                    "gaze_data": gaze.model_dump(),
-                    "jaw_movement_data": jaw.model_dump(),
-                    "smile_data": smile.model_dump(),
+            )
+        else:
+            row.update(
+                {
                     "loudness_data": np.nan,
                     "average_pitch_data": np.nan,
                     "pitch_standard_deviation": np.nan,
@@ -657,8 +673,10 @@ def feature_engineering(
                     "filler_words_usage": np.nan,
                     "pauses_taken": np.nan,
                 }
+            )
 
-            new_df.append(new_row)
+        rows.append(row)
 
-    new_df = pd.DataFrame(new_df)
-    return new_df
+    df = pd.DataFrame(rows)
+    logger.info("Built master dataframe: %d rows x %d cols", *df.shape)
+    return df

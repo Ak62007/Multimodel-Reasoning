@@ -101,14 +101,6 @@ explicit_package_bases = true
 module = ["legacy_notebooks.*"]
 ignore_errors = true
 
-# pipeline.features.transforms is the largest single block of pre-refactor
-# code in the repo. It receives a substantial rewrite in M2 (column renames,
-# paths refactor, smaller helpers); type checking it strictly during M1 would
-# only generate noise. The override is removed once M2 lands.
-[[tool.mypy.overrides]]
-module = ["pipeline.features.transforms"]
-ignore_errors = true
-
 # ---- pytest ---------------------------------------------------------------
 
 [tool.pytest.ini_options]

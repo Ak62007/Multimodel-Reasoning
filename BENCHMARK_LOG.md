@@ -51,3 +51,47 @@ This file is co-maintained:
 - User: <FILL IN — any retries / restarts / interventions worth noting>
 
 ---
+
+## M2 — Pipeline orchestrator + cleanup
+
+- Completed: 2026-06-10
+- Commit: (see `git rev-list -n 1 m2-done`)
+- Tag: m2-done
+- Telemetry source used (logfire / Factory UI / other): <FILL IN>
+
+### This-session subtotal (if Factory telemetry is session-scoped; else same as Run total)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- Session subtotal: <FILL IN>
+
+### Run total (cumulative across the entire benchmarking run)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- **Run total: <FILL IN>**
+
+### Notes
+
+- Agent: implemented the full pipeline end-to-end (`pipeline/orchestrator.py`
+  with a CLI at `python -m pipeline.orchestrator <video>`). Wrote
+  `pipeline/merge.py` (audio-driven 0.5 s grid, `merge_asof` face
+  forward-fill, Whisper word binning, AssemblyAI interval-based speaker
+  labelling), `pipeline/features/linguistic.py` (wps + cumulative filler
+  / pause percentages), `pipeline/features/smoothing.py` (EWM + robust-z).
+  Split the legacy `feature_engineering(mode=)` into
+  `compute_raw_features` + `feature_engineering` with precise types;
+  removed the M1 mypy override. Renamed `audio_rms(volumn)` → `audio_rms`
+  and `audio_pitch_var(expressiveness)` → `audio_pitch_var` and migrated
+  every consumer. Swept `print()` → `logging` across `pipeline/`.
+  Centralised paths in `pipeline/io/paths.py` with a `JobPaths` dataclass.
+  Verified end-to-end with a synthetic dataframe + RRCF sweep — produces
+  a 10-column Pydantic-decodable master dataframe. `ruff check`,
+  `ruff format --check`, `mypy`, and `pytest` (0 tests) all green.
+- User: <FILL IN — any retries / restarts / interventions worth noting>
+
+---

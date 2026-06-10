@@ -63,3 +63,67 @@ recorded here, with timestamp + rationale. Per §17 of the spec.
   per-module override is preferable to adding ~90 `# type: ignore[...]`
   comments that would be deleted again next milestone. The override is
   removed in M2.
+
+---
+
+## 2026-06-10 — M2: pipeline orchestrator + cleanup
+
+### Column renames
+
+- `audio_rms(volumn)` → `audio_rms`
+- `audio_pitch_var(expressiveness)` → `audio_pitch_var`
+- Consumers (`pipeline/features/transforms.py`, `pipeline/orchestrator.py`)
+  migrated in the same commit. Parens-style column names appeared only in
+  the audio technical extractor; no parquet artefacts are checked in, so
+  there is no legacy data migration to perform.
+
+### Mode split
+
+- The original `feature_engineering(mode="training"|"evaluation")` was the
+  single largest source of type-system ambiguity (and of bugs — passing
+  the wrong mode produced wildly different return shapes). Split into
+  `compute_raw_features` (numeric outputs feeding smoothing) and
+  `feature_engineering` (Pydantic-decodable outputs for the final master
+  parquet). The mypy override added in M1 is removed accordingly.
+
+### Master dataframe resolution
+
+- Existing notebooks merged at **1 Hz** (inner join on `Time`), silently
+  dropping the half-second audio rows. M2 changes the master grid to the
+  audio grid (**0.5 s**) using `merge_asof(... direction='backward')` to
+  forward-fill face features. This preserves the per-row schema and
+  every Pydantic field downstream agents depend on, while keeping the
+  full acoustic signal. The decision is contained inside `pipeline/merge.py`
+  and changes resolution only; the column names are unchanged.
+
+### Smoothing + robust-z
+
+- EWM spans preserved verbatim from `feature_engineering.ipynb`:
+  visual {blink:3, gaze:6, jaw:4, smile:8}, audio/verbal
+  {loudness:5, pitch_rel:8, pitch_expr:6, wps:6}. Robust-z formula:
+  `(x - median) / (1.4826 * MAD)`, returning 0 when MAD == 0. Visual
+  features are normalised over the whole series; audio/verbal features
+  are normalised over the target-speaker rows only.
+
+### Anomaly detection sweep
+
+- `pipeline/orchestrator._detect_anomalies` runs RRCF against the eight
+  smoothed-rz feature columns, picks an adaptive `n_sigma`, thresholds
+  via MAD, and groups consecutive anomalous timestamps into ranges with
+  `get_anomalous_time_ranges`. Filler / pause categorical anomalies are
+  passed through as empty lists; the per-row `FillerPercentageIncrease`
+  / `PausePercentageIncrease` Pydantic models surface them via their
+  existing `*_level` enum field.
+
+### `JobPaths`
+
+- Every pipeline component now reads its paths from
+  `pipeline.io.paths.JobPaths`. No relative paths (`../data/raw/`)
+  remain. The CLI keys a workdir by video stem; the backend will key
+  it by job id (M5).
+
+### Logging
+
+- Every `print()` in `pipeline/` is now `logger.info` / `logger.warning`
+  / `logger.exception`. The CLI's `--verbose` flag controls the root
+  log level.
