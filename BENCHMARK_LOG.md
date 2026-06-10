@@ -21,21 +21,21 @@ This file is co-maintained:
 - Tag: m1-done
 - Telemetry source used (logfire / Factory UI / other): <FILL IN>
 
-### This-session subtotal (if Factory telemetry is session-scoped; else same as Run total)
+### This-session subtotal (since last fresh Claude Code session start)
 
-- Input: <FILL IN>
-- Output: <FILL IN>
-- Cache read: <FILL IN>
-- Cache write: <FILL IN>
-- Session subtotal: <FILL IN>
+- Input: 1,359 tokens
+- Output: 236,340 tokens
+- Cache read: 20,215,471 tokens
+- Cache write: 1,312,991 tokens
+- Session subtotal: (cost not provided)
 
-### Run total (cumulative across the entire benchmarking run)
+### Run total (sum across ALL sessions in this run)
 
-- Input: <FILL IN>
-- Output: <FILL IN>
-- Cache read: <FILL IN>
-- Cache write: <FILL IN>
-- **Run total: <FILL IN>**
+- Input: 1,359 tokens
+- Output: 236,340 tokens
+- Cache read: 20,215,471 tokens
+- Cache write: 1,312,991 tokens
+- Run total: (cost not provided)
 
 ### Notes
 
