@@ -65,7 +65,10 @@ async def build_report(
         master_df: Master dataframe produced by ``pipeline.orchestrator``.
         speaker_label: AssemblyAI label of the candidate (default ``"B"``).
         transcript_df: Optional transcript dataframe keyed on ``Time``.
-        model: Override the Groq model id (defaults to ``LLM_MODEL`` env).
+        model: Override the LLM model spec (defaults to ``LLM_MODEL`` env).
+            Accepts either a bare Groq id (``llama-3.3-70b-versatile``)
+            or a provider-qualified spec (``openai:gpt-4o-mini``,
+            ``anthropic:claude-haiku-4-5``, ``google-gla:gemini-1.5-flash``).
         on_window_done: Optional callback invoked with each successful
             (non-empty) per-window report as it completes - useful for
             streaming progress into a UI.
@@ -106,6 +109,7 @@ async def build_report(
     )
 
     reports: list[IntegratedBehavioralReport] = []
+    errors: list[BaseException] = []
     for window, result in zip(windows, raw_results, strict=True):
         if isinstance(result, BaseException):
             logger.exception(
@@ -114,6 +118,7 @@ async def build_report(
                 window.end,
                 exc_info=result,
             )
+            errors.append(result)
             continue
         if result is None:
             continue
@@ -125,6 +130,18 @@ async def build_report(
                 on_window_done(result)
             except Exception:
                 logger.exception("on_window_done callback raised - continuing.")
+
+    # If every window we tried to process errored out, do *not* fall
+    # through to the judge with an empty bundle - the model would then
+    # synthesise a fake "please provide data" report and the backend
+    # would mark the job `done`, which is exactly the failure mode the
+    # 2026-06-11 Groq rate-limit incident produced. Re-raise the first
+    # exception so the JobRunner surfaces it as a job failure.
+    if errors and not reports:
+        raise RuntimeError(
+            f"All {len(windows)} analysis windows failed; aborting before "
+            f"judge synthesis. First underlying error: {errors[0]!r}"
+        ) from errors[0]
 
     reports.sort(key=lambda r: r.time_range_start)
 
