@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agents._runtime import get_model_id, use_stub
+from agents._runtime import get_model_spec, use_stub
 from agents._stub import stub_integrated_report
 from agents._window_slice import WindowSlice, format_pattern_detector_input
 from agents.prompts import PATTERN_DETECTOR_PROMPT
@@ -34,7 +34,7 @@ async def run_pattern_detector(
     from pydantic_ai import Agent
 
     agent: Agent[None, IntegratedBehavioralReport] = Agent(
-        f"groq:{get_model_id(model)}",
+        get_model_spec(model),
         output_type=IntegratedBehavioralReport,
         system_prompt=PATTERN_DETECTOR_PROMPT,
     )

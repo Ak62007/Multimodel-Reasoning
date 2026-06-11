@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agents._runtime import get_model_id, use_stub
+from agents._runtime import get_model_spec, use_stub
 from agents._stub import stub_final_report
 from agents.prompts import JUDGE_PROMPT
 from agents.schemas import FinalReport, IntegratedBehavioralReport
@@ -20,7 +20,7 @@ async def run_judge(
     from pydantic_ai import Agent
 
     agent: Agent[None, FinalReport] = Agent(
-        f"groq:{get_model_id(model)}",
+        get_model_spec(model),
         output_type=FinalReport,
         system_prompt=JUDGE_PROMPT,
     )

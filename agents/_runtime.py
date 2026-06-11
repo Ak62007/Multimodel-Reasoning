@@ -28,16 +28,33 @@ def use_stub() -> bool:
 
 
 def get_model_id(model: str | None = None) -> str:
-    """Return the Groq model identifier to use.
+    """Return the bare model identifier (no provider prefix).
 
     Order of precedence: explicit argument > ``LLM_MODEL`` env > default.
+    A leading ``"<provider>:"`` prefix is stripped if present so the
+    return value is always just the model id (e.g. ``llama-3.3-70b-versatile``
+    or ``gpt-4o-mini``).
     """
-    if model:
-        return model
-    env = os.environ.get("LLM_MODEL")
-    if env:
-        return env
-    return DEFAULT_LLM_MODEL
+    raw = model or os.environ.get("LLM_MODEL") or DEFAULT_LLM_MODEL
+    return raw.split(":", 1)[1] if ":" in raw else raw
+
+
+def get_model_spec(model: str | None = None) -> str:
+    """Return the fully-qualified ``"<provider>:<model_id>"`` for pydantic-ai.
+
+    - If the caller / ``LLM_MODEL`` already carries a ``"<provider>:"``
+      prefix (e.g. ``openai:gpt-4o-mini``, ``anthropic:claude-haiku-4-5``,
+      ``google-gla:gemini-1.5-flash``, ``groq:llama-3.1-8b-instant``),
+      it is returned verbatim.
+    - Otherwise the value is treated as a Groq model id for backwards
+      compatibility with the original ``LLM_MODEL=llama-3.3-70b-versatile``
+      shape and ``"groq:"`` is prepended.
+
+    This lets the user swap providers in ``.env`` alone (provided the
+    matching API key env var is also set) — no code change required.
+    """
+    raw = model or os.environ.get("LLM_MODEL") or DEFAULT_LLM_MODEL
+    return raw if ":" in raw else f"groq:{raw}"
 
 
 def get_max_concurrency() -> int:

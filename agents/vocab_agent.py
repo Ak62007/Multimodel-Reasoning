@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agents._runtime import get_model_id, use_stub
+from agents._runtime import get_model_spec, use_stub
 from agents._stub import stub_vocab_observation
 from agents._window_slice import WindowSlice, format_vocab_input
 from agents.prompts import VOCABULARY_PROMPT
@@ -21,7 +21,7 @@ async def run_vocab_observer(
     from pydantic_ai import Agent
 
     agent: Agent[None, VocabObservation] = Agent(
-        f"groq:{get_model_id(model)}",
+        get_model_spec(model),
         output_type=VocabObservation,
         system_prompt=VOCABULARY_PROMPT,
     )

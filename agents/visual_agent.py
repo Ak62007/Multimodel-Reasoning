@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agents._runtime import get_model_id, use_stub
+from agents._runtime import get_model_spec, use_stub
 from agents._stub import stub_visual_observation
 from agents._window_slice import WindowSlice, format_visual_input
 from agents.prompts import VISUAL_PROMPT
@@ -27,7 +27,7 @@ async def run_visual_observer(
     from pydantic_ai import Agent
 
     agent: Agent[None, VisualObservation] = Agent(
-        f"groq:{get_model_id(model)}",
+        get_model_spec(model),
         output_type=VisualObservation,
         system_prompt=VISUAL_PROMPT,
     )
