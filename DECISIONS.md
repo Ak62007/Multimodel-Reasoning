@@ -423,3 +423,155 @@ explicit that v1 is single-user (§3), so this is acceptable.
   one terminal (`uv run uvicorn --reload` and `npm run dev`). Other
   targets: `make test`, `make lint`, `make fmt`, `make mypy`, `make build`,
   `make clean`.
+
+---
+
+## 2026-06-11 — M7 follow-up: actually building the images locally
+
+The §11 spec wording is "Dockerfiles, compose, CI", which I read at the
+time as "ship the artefacts". On reflection, "the daemon wasn't running
+so CI will exercise them" is a weak proof — multistage Dockerfiles are
+exactly the kind of artefact that has a non-zero chance of failing only
+when actually built. Re-running the builds today with the daemon up
+caught three real bugs in the M7 commit:
+
+1. `.dockerignore` excluded the entire `docker/` directory, so
+   `Dockerfile.frontend`'s `COPY docker/nginx.conf` failed with
+   "failed to compute cache key … /docker/nginx.conf: not found".
+   Fix: keep `docker` ignored but add `!docker/nginx.conf` to un-ignore
+   the single file the frontend image needs.
+2. `.dockerignore` excluded `README.md`, but `pyproject.toml` references
+   it via `readme = "README.md"`, so `uv sync` inside the backend
+   builder failed with "readme file does not exist". Fix: leave
+   README.md in the build context with an inline comment explaining
+   why.
+3. The base image had to be pinned to `linux/amd64` because MediaPipe
+   ships wheels only for `manylinux_2_28_x86_64` on Linux. Without the
+   pin, `docker build` on Apple Silicon tries a `linux/arm64` build and
+   fails to resolve `mediapipe==0.10.x`. Pinning both stages adds a
+   slight emulation cost on Apple Silicon dev machines but is free on
+   amd64 CI runners. Also bumped `UV_HTTP_TIMEOUT=600` because
+   whisper-timestamped → torch is ~800 MB and the default 30 s timeout
+   was tripping on slower networks.
+
+After the fix, end-to-end verification was performed locally:
+
+- `docker build -f docker/Dockerfile.backend -t mmr-backend:local .`
+  produces a 13.7 GB image (torch + mediapipe + whisper + sklearn, as
+  expected).
+- `docker build -f docker/Dockerfile.frontend -t mmr-frontend:local .`
+  produces a 92.5 MB nginx-served image.
+- `docker compose up -d` brings both up; backend reaches `(healthy)`
+  inside the `start-period` window. `curl http://localhost:8000/api/health`
+  returns `{"status":"ok","version":"0.1.0"}` directly and the same
+  payload through the nginx `/api` reverse proxy at
+  `http://localhost:8080/api/health`. `GET /api/jobs` through the proxy
+  returns `{"items":[],"total":0}`, confirming the proxy works for
+  real routes too. A headless-browser load of `http://localhost:8080/`
+  rendered the SPA cleanly with no JS errors. `docker compose down`
+  cleaned up the network + containers.
+
+BuildKit prints two `FromPlatformFlagConstDisallowed` warnings about
+the constant `linux/amd64` pin. That recommendation is for images
+intended to be cross-platform; here the pin is the whole point, so
+the warnings are accepted and documented in the Dockerfile.
+
+---
+
+## 2026-06-11 — M8: Docs + polish
+
+### Scope
+
+M8 is documentation-only. The deliverables per spec §12 + §14 are:
+
+- A real `README.md` (the M1 scaffold is replaced wholesale).
+- A real `DEPLOYMENT.md` (the M1 scaffold is replaced wholesale).
+- This DECISIONS.md entry recording the non-obvious calls below.
+- A BENCHMARK_LOG.md M8 section with placeholders for the user to fill.
+
+No code changes. The acceptance criteria from §14 ("docker compose up
+works on a fresh clone", "README quickstart can be followed start to
+finish", "deployment doc is concrete and unambiguous") are all
+documentation outcomes.
+
+### Deployment target: VPS via `docker compose` (primary), Fly.io (notes)
+
+The spec offers Fly.io, Railway, or a generic VPS. I chose a generic
+VPS via `docker compose` as the *primary* walkthrough for three
+reasons:
+
+1. The repo already ships a working `docker-compose.yml`. A VPS guide
+   is a thin layer of "install docker, clone, configure .env, bring it
+   up, put TLS in front". It maximises reuse of the artefacts we
+   already verified end-to-end.
+2. Backend images are 13.7 GB and the pipeline writes large parquet
+   files to a persistent volume. PaaS free tiers (Fly.io free, Railway
+   trial) cannot host this; users will land on a paid machine either
+   way, so "rent a $10/month 4 GB VPS" is more honest than "deploy to
+   Fly's free tier".
+3. The MediaPipe `face_landmarker.task` is 6.7 MB and must be present
+   inside the container. On a VPS we just mount `./models:/app/models:ro`
+   like compose already does. On Fly.io we'd have to bake it into the
+   image — more steps, more documentation surface area.
+
+Fly.io is described as a one-paragraph alternative at the bottom of
+DEPLOYMENT.md so users with a strong preference for PaaS aren't
+completely without guidance. Railway is omitted — its docker-compose
+support keeps shifting and a step-by-step from today would rot fast.
+
+### TLS
+
+The VPS walkthrough recommends Caddy in front of the compose stack
+because it auto-provisions Let's Encrypt certificates with a 4-line
+Caddyfile and requires zero certbot cron jobs. nginx-in-front would
+also work but needs explicit cert renewal. Caddy is the lowest-friction
+option for a small deployment.
+
+### Persistent volume sizing
+
+`./data/` holds:
+
+- `uploads/<job_id>/source.<ext>` — the raw video (≤ 500 MB cap per
+  spec §9, default cap is what `MAX_UPLOAD_MB` says).
+- `processed/<job_id>/master.parquet` — ~3–10 MB per minute of video.
+- `processed/<job_id>/agents/` — JSON outputs, a few hundred KB.
+- `mmr.db` — SQLite, tens of MB at most.
+
+So per analysis: ~500 MB upload + 10 MB derived ≈ 0.5 GB. A 20 GB
+volume comfortably holds ~30 analyses; that's what I recommend in
+DEPLOYMENT.md. Bigger workloads should add a `cron` reaper that
+removes `data/uploads/<job_id>/` once the corresponding `Job.status`
+in `mmr.db` is `done`. I described the reaper in prose rather than
+shipping a script — the exact retention policy is a deployment
+decision, not a product one.
+
+### Auth
+
+The spec explicitly asks for "notes on adding auth later" rather than
+implementing auth. DEPLOYMENT.md's auth section names the lowest-cost
+options (Caddy basicauth, FastAPI dependency that checks a bearer
+token, full OIDC via authlib) and explains why none of them is in the
+default deployment: the app is single-tenant, there is no public
+exposure assumed, and adding auth would have meant changing the
+frontend's API client and the OpenAPI surface — out of scope for M8.
+
+### README structure
+
+I followed the implicit "GitHub project README" conventions: a
+two-paragraph elevator pitch, a quickstart for the two common paths
+(Docker and local dev), an ASCII architecture diagram, a directory
+map, the test commands, a config table, known limitations,
+troubleshooting, and links to the deeper docs. The directory map
+mirrors the actual repo (verified by `ls`), not a hand-wave; the
+config table is generated from `backend/app/config.py` + `.env.example`
+so the two stay aligned.
+
+### What was *not* changed in M8
+
+- No tag move. `m8-done` already exists on the parallel `cc-run`
+  lineage from an earlier agent variant; I am not retagging or
+  force-pushing tags. The user can tag this branch's HEAD as
+  `m8-done-factory` (or move the existing tag locally) if they want
+  parity with the other lineage.
+- No spec-compliance audit commit. The audit is done in this entry
+  and the new README itself.

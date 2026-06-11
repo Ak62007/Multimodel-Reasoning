@@ -319,7 +319,100 @@ This file is co-maintained:
   `docker compose config` validates the full stack. The Docker daemon
   wasn't running on the local machine so the image builds will be
   exercised by the docker.yml CI job on first push to main — captured
-  in DECISIONS.md.
+  in DECISIONS.md. (Superseded — see the M7 follow-up below.)
+- User: <FILL IN — any retries / restarts / interventions worth noting>
+
+---
+
+## M7 follow-up — Docker image builds verified locally
+
+- Completed: 2026-06-11
+- Commit: 9a5f107 ("M7 fix: make Docker images actually buildable
+  locally")
+- Tag: (none — folded into the M7 milestone)
+- Telemetry source used (logfire / Factory UI / other): <FILL IN>
+
+### This-session subtotal
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- Session subtotal: <FILL IN>
+
+### Run total (cumulative across the entire benchmarking run)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- **Run total: <FILL IN>**
+
+### Notes
+
+- Agent: re-ran the M7 acceptance with the Docker daemon up. Surfaced
+  three real bugs the original M7 commit missed: `.dockerignore`
+  excluded `docker/` (so `Dockerfile.frontend`'s `COPY docker/nginx.conf`
+  failed), `.dockerignore` excluded `README.md` (which
+  `pyproject.toml`'s `readme = "README.md"` requires for `uv sync`),
+  and the backend stages needed `--platform=linux/amd64` for
+  MediaPipe's `manylinux_2_28_x86_64` wheel. Bumped
+  `UV_HTTP_TIMEOUT=600` so the ~800 MB torch download wouldn't time
+  out on slow networks. After the fix: `docker build` succeeded for
+  both images locally, `docker compose up -d` brought the stack up,
+  `/api/health` returned `ok` directly and through the nginx `/api`
+  proxy, `/api/jobs` round-tripped through the proxy too, and the SPA
+  rendered cleanly in a headless browser with no JS errors. Full
+  rationale is captured in the new DECISIONS.md "M7 follow-up" entry.
+- User: <FILL IN — any retries / restarts / interventions worth noting>
+
+---
+
+## M8 — Docs + polish
+
+- Completed: 2026-06-11
+- Commit: (see `git rev-list -n 1 m8-done` once tagged, or `git log
+  --grep='M8: Docs + Polish' -1`)
+- Tag: m8-done (the `m8-done` tag already exists on the parallel
+  `cc-run` lineage; not retagging — see DECISIONS.md M8 §"What was
+  *not* changed")
+- Telemetry source used (logfire / Factory UI / other): <FILL IN>
+
+### This-session subtotal
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- Session subtotal: <FILL IN>
+
+### Run total (cumulative across the entire benchmarking run)
+
+- Input: <FILL IN>
+- Output: <FILL IN>
+- Cache read: <FILL IN>
+- Cache write: <FILL IN>
+- **Run total: <FILL IN>**
+
+### Notes
+
+- Agent: replaced the M1-scaffold `README.md` and `DEPLOYMENT.md` with
+  full documents per spec §12 + §14. README covers a two-paragraph
+  product overview, Docker and local-dev quickstarts, an ASCII
+  architecture diagram, the full directory layout, a config table
+  generated from `backend/app/config.py` + `.env.example`, test
+  commands, known limitations, troubleshooting, and links to deeper
+  docs. DEPLOYMENT walks through a generic-VPS install with
+  `docker compose` + Caddy for TLS, gives an env-var checklist with
+  required/optional labels, covers sizing (20 GB volume = ~30
+  analyses, 4 vCPU / 8 GB RAM minimum, amd64-only because of
+  MediaPipe), backup + reaper + secrets-rotation operational notes,
+  three escalating options for adding auth later, and a short Fly.io
+  alternative path. DECISIONS.md gains an M8 entry recording why VPS
+  beat Fly.io / Railway for the primary doc, why Caddy beat nginx for
+  TLS, how the 20 GB volume recommendation was derived, and what was
+  deliberately *not* done (no tag move, no spec-compliance audit
+  commit beyond this entry). No code changed in M8.
 - User: <FILL IN — any retries / restarts / interventions worth noting>
 
 ---
