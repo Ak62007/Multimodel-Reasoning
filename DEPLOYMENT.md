@@ -308,7 +308,9 @@ and are deliberately not documented here.
   errors.** You haven't placed the weights under `./models/`. Run
   the `curl` command from §3.2.
 - **`/api/jobs` returns 413.** Upload exceeded `MAX_UPLOAD_MB`. Raise
-  the env var *and* the Caddy `request_body max_size` together.
+  the env var *and* the Caddy `request_body max_size` together. If
+  you also raised it above 600 MB, raise `client_max_body_size` in
+  `docker/nginx.conf` to match.
 
 If something here is wrong or unclear, please open an issue with the
 exact command you ran and the output you saw.

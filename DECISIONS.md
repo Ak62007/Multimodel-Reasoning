@@ -575,3 +575,51 @@ so the two stay aligned.
   parity with the other lineage.
 - No spec-compliance audit commit. The audit is done in this entry
   and the new README itself.
+
+---
+
+## 2026-06-11 — Hot-fix: nginx `client_max_body_size` was at its 1 MB default
+
+The bundled `docker/nginx.conf` set no `client_max_body_size`, so
+nginx applied its default of 1 MB. The backend's `MAX_UPLOAD_MB=500`
+cap was therefore unreachable through the `:8080` proxy — every
+upload larger than 1 MB hit a `[error] client intended to send too
+large body` in nginx and was 413'd before the backend ever saw it.
+Surfaced when a user posted a ~205 MB video and saw the proxy 413
+in `docker compose logs frontend`.
+
+Fix in `docker/nginx.conf`:
+
+- `client_max_body_size 600M;` — sized to match the Caddy
+  `request_body max_size` in DEPLOYMENT.md §3.5 and to give 100 MB
+  of headroom over the default backend cap. Backend keeps enforcing
+  the real cap via `MAX_UPLOAD_MB` and returns its structured
+  `{"detail": "upload exceeds N MB"}` 413, which now actually
+  surfaces to the client instead of being shadowed by nginx's
+  generic 413.
+- `client_body_timeout 300s;` — default is 60 s, which is borderline
+  for a ~500 MB upload on a 20 Mbps link. 300 s gives margin without
+  being lax enough to invite slowloris-style abuse.
+- `proxy_request_buffering off;` in the `/api/` block — without it,
+  nginx buffers the entire request body to a temp file (under
+  `/var/cache/nginx/`) before opening the connection to the
+  backend. For multi-hundred-MB videos this doubles disk I/O and
+  delays the first backend byte by tens of seconds. Streaming
+  straight through also means the backend's `413` arrives at the
+  client mid-upload instead of after the full body is buffered.
+
+DEPLOYMENT.md §8 troubleshooting and README "Troubleshooting" pick
+up new lines about how to lift the cap if a deployment needs to
+allow > 600 MB uploads (raise both `MAX_UPLOAD_MB` and the nginx
+`client_max_body_size`, then rebuild the frontend image).
+
+Verified after the fix:
+
+- `curl -sf http://localhost:8080/api/health` still returns
+  `{"status":"ok","version":"0.1.0"}`.
+- `POST` of a 5 MiB body through `:8080` now reaches the backend
+  and gets the backend's own validation response (HTTP 422 missing
+  field), proving nginx forwarded the body in full.
+- `docker compose logs frontend` shows the `422 115` line for the
+  POST with no preceding `client intended to send too large body`
+  error.

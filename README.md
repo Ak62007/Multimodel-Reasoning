@@ -266,6 +266,13 @@ both images on pushes to `main`.
   Make sure `VITE_API_BASE_URL=http://localhost:8000` in your dev
   shell (or in `frontend/.env.local`). The backend's CORS allow-list
   already covers `localhost:5173`.
+- **Upload through port 8080 fails with a 413 well below 500 MB.**
+  You're on an old build of the frontend image. Rebuild it
+  (`docker compose build frontend && docker compose up -d frontend`)
+  — the bundled `docker/nginx.conf` sets `client_max_body_size 600M`
+  to match the backend `MAX_UPLOAD_MB=500` default. If you raised
+  `MAX_UPLOAD_MB` above 600, raise `client_max_body_size` in
+  `docker/nginx.conf` to match and rebuild the frontend image.
 
 ---
 
