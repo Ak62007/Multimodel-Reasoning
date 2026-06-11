@@ -21,8 +21,12 @@ frontend/coverage
 .env.local
 .DS_Store
 docker
+# nginx.conf is COPYed by docker/Dockerfile.frontend; un-ignore it so the
+# frontend build can see it even though the rest of docker/ is excluded.
+!docker/nginx.conf
 docker-compose.yml
-README.md
+# README.md is referenced by pyproject.toml's `readme = "README.md"` so it
+# must be present during `uv sync`. Leave it in the build context.
 DECISIONS.md
 DEPLOYMENT.md
 BENCHMARK_LOG.md
