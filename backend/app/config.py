@@ -32,9 +32,10 @@ class Settings(BaseSettings):
 
     # LLM (mirrored from agents/_settings.py so the backend can validate
     # before kicking off a job).
-    llm_provider: Literal["groq", "stub"] = "groq"
+    llm_provider: Literal["groq", "openai", "anthropic", "google-gla", "stub"] = "groq"
     llm_model: str = "llama-3.3-70b-versatile"
     groq_api_key: str | None = None
+    gemini_api_key: str | None = None
 
     # Pipeline
     assemblyai_api_key: str | None = None

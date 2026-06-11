@@ -1,10 +1,10 @@
 """MMR agentic layer.
 
-Four agents (visual / audio / vocab observers + pattern detector) plus a final
-judge. Only the pattern detector's `IntegratedBehavioralReport`s and the judge's
-`FinalReport` are exposed publicly — observer outputs are internal scaffolding.
-
-See spec section 9 for the design rationale.
+Six agents: visual / audio / vocab observers feed a per-window Window Analyst
+(producing a `WindowAnalysis` field note for every window), and a Pattern Weaver
++ Narrative Editor synthesise the chronological journal into the final
+`FinalReport`. Observer outputs are internal scaffolding; the journal
+(`WindowAnalysis` list) and `FinalReport` are exposed publicly.
 """
 
 __all__: list[str] = []

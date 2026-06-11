@@ -40,34 +40,59 @@ const succeededJob: Job = {
 
 const failedJob: Job = { ...succeededJob, status: "failed", error: "ASR upload failed", progress: 0.2 };
 
-function makeSegment(overrides: Partial<typeof segmentBase> = {}) {
-  return { ...segmentBase, ...overrides };
-}
-
-const segmentBase = {
-  time_range_start: 5,
-  time_range_end: 7,
-  overall_window_tone: "Mixed_Signals",
-  executive_summary: "A short summary of the window.",
-  key_insights: [
+const windowNote = {
+  time_start: 5,
+  time_end: 7,
+  phase: "Early",
+  position_pct: 0.1,
+  spoken_excerpt: "I worked on the ML stack",
+  visual_read: "Steady gaze.",
+  audio_read: "Voice tightened.",
+  verbal_read: "Fluent.",
+  narrative: "A vocal tightening stands out on the ML claim.",
+  window_interest: "High",
+  signals: [
     {
       timestamp_start: 5.5,
       timestamp_end: 6.0,
+      modalities: ["Audio", "Verbal"],
+      relation: "Contradiction",
+      kind: "Tell",
+      headline: "Voice tightened on a claim",
+      evidence: "Pitch rose while claiming ownership.",
       spoken_content: "I worked on the ML stack",
-      modalities_involved: ["Visual", "Audio"],
-      pattern_type: "Concern",
-      significance: "High",
-      observation: "Vocal tightening with averted gaze.",
       interpretation: "Possible discomfort with the topic.",
+      significance: "High",
     },
   ],
 };
 
 const finalReport = {
-  executive_summary: "Solid candidate overall.",
-  behavioral_strengths: "Calm and articulate.",
-  vulnerabilities_and_triggers: "Stress under deep-technical questions.",
-  areas_for_improvement: "Practice technical explanations.",
+  headline: "Composed but tense on ownership claims.",
+  overview: "Solid candidate overall.",
+  behavioral_arc: "Calm open, tense middle, recovery by close.",
+  highlights: [
+    {
+      ts_start: 5.5,
+      ts_end: 6.0,
+      title: "Voice tightened on a claim",
+      what_happened: "Pitch rose while claiming ownership.",
+      why_it_matters: "Worth probing the claim.",
+      modalities: ["Audio", "Verbal"],
+      kind: "Tell",
+      significance: "High",
+    },
+  ],
+  threads: [
+    {
+      title: "Tension on ownership claims",
+      summary: "Voice tightens whenever credit is claimed.",
+      relation: "Contradiction",
+      occurrences: [5.5, 88.0],
+      interpretation: "A consistent tell around credit.",
+    },
+  ],
+  coaching_notes: "Practice claims aloud.",
 };
 
 function setupMocks(opts: { job: Job; segments: unknown[]; report?: typeof finalReport }) {
@@ -76,7 +101,7 @@ function setupMocks(opts: { job: Job; segments: unknown[]; report?: typeof final
     { url: /\/api\/jobs\/abc\/segments/, body: { items: opts.segments } },
     {
       url: /\/api\/jobs\/abc\/report/,
-      body: { markdown: "# Executive Summary\n\ntest", structured: opts.report ?? finalReport },
+      body: { markdown: "# Composed\n\ntest", structured: opts.report ?? finalReport },
     },
     { url: /\/api\/jobs\/abc\/logs/, body: { lines: ["log line 1", "log line 2"] } },
   ]);
@@ -86,47 +111,53 @@ describe("ReportScreen", () => {
   let restore: () => void;
   afterEach(() => restore?.());
 
-  it("renders all three report sections on success", async () => {
-    restore = setupMocks({ job: succeededJob, segments: [makeSegment()] });
+  it("renders overview, highlights, threads, and journal on success", async () => {
+    restore = setupMocks({ job: succeededJob, segments: [windowNote] });
     renderWithProviders(<ReportScreen />);
 
     await waitFor(() => expect(screen.getByTestId("section-summary")).toBeInTheDocument());
-    expect(screen.getByTestId("section-patterns")).toBeInTheDocument();
-    expect(screen.getByTestId("final-conclusion")).toBeInTheDocument();
-    // Four sub-sections in Final Conclusion
-    expect(screen.getAllByTestId("final-section").length).toBe(4);
-    expect(screen.getByTestId("cross-modal-segment")).toBeInTheDocument();
+    expect(screen.getByTestId("report-headline")).toHaveTextContent("ownership claims");
+    expect(screen.getByTestId("section-highlights")).toBeInTheDocument();
+    expect(screen.getByTestId("highlight-card")).toBeInTheDocument();
+    expect(screen.getByTestId("section-threads")).toBeInTheDocument();
+    expect(screen.getByTestId("thread-card")).toBeInTheDocument();
+    expect(screen.getByTestId("section-journal")).toBeInTheDocument();
+    expect(screen.getByTestId("window-note")).toBeInTheDocument();
   });
 
-  it("renders the three pattern-type badges with correct colors", async () => {
+  it("renders kind badges with the correct kind attribute", async () => {
     restore = setupMocks({
       job: succeededJob,
-      segments: [
-        makeSegment({
-          key_insights: [
-            { ...segmentBase.key_insights[0], pattern_type: "Strength" },
-            { ...segmentBase.key_insights[0], pattern_type: "Concern" },
-            { ...segmentBase.key_insights[0], pattern_type: "Notable" },
-          ],
-        }),
-      ],
+      segments: [windowNote],
+      report: {
+        ...finalReport,
+        highlights: [
+          { ...finalReport.highlights[0], kind: "Strength" },
+          { ...finalReport.highlights[0], kind: "Tension" },
+          { ...finalReport.highlights[0], kind: "Quirk" },
+        ],
+      },
     });
     renderWithProviders(<ReportScreen />);
 
-    await waitFor(() => expect(screen.getAllByTestId("pattern-type-badge").length).toBe(3));
-    const badges = screen.getAllByTestId("pattern-type-badge");
-    expect(badges[0].getAttribute("data-type")).toBe("Strength");
-    expect(badges[1].getAttribute("data-type")).toBe("Concern");
-    expect(badges[2].getAttribute("data-type")).toBe("Notable");
+    await waitFor(() =>
+      expect(screen.getAllByTestId("highlight-card").length).toBe(3),
+    );
+    const badges = screen
+      .getAllByTestId("highlight-card")
+      .map((card) => card.querySelector('[data-testid="kind-badge"]')?.getAttribute("data-kind"));
+    expect(badges).toEqual(["Strength", "Tension", "Quirk"]);
   });
 
-  it("renders the no-patterns fallback when segments is empty", async () => {
-    restore = setupMocks({ job: succeededJob, segments: [] });
+  it("renders the no-highlights fallback when there are none", async () => {
+    restore = setupMocks({
+      job: succeededJob,
+      segments: [],
+      report: { ...finalReport, highlights: [], threads: [] },
+    });
     renderWithProviders(<ReportScreen />);
 
-    await waitFor(() =>
-      expect(screen.getByTestId("no-patterns")).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByTestId("no-highlights")).toBeInTheDocument());
   });
 
   it("renders the error mode for failed jobs with log tail", async () => {
@@ -134,14 +165,13 @@ describe("ReportScreen", () => {
     renderWithProviders(<ReportScreen />);
 
     await waitFor(() => expect(screen.getByTestId("error-card")).toBeInTheDocument());
-    // The log fetch happens after status flips to "failed"; wait for it.
     await waitFor(() =>
       expect(screen.getByTestId("error-log").textContent).toContain("log line 1"),
     );
   });
 
   it("Download as Markdown triggers a download", async () => {
-    restore = setupMocks({ job: succeededJob, segments: [makeSegment()] });
+    restore = setupMocks({ job: succeededJob, segments: [windowNote] });
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     const createObjectURLSpy = vi.spyOn(URL, "createObjectURL");
 

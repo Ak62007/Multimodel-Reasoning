@@ -1,10 +1,10 @@
 """End-to-end agent chain tests using the stub LLM provider.
 
-Per spec §10, the agentic layer is tested with `LLM_PROVIDER=stub` so the
-tests are deterministic and free. The stub builds schema-correct outputs
-from each window's anomaly content, exercising the orchestrator wiring
-(window selection, observer fan-out, Pattern Detector branching on
-multi-modal activity, drop-empty-windows behavior, Judge aggregation).
+The agentic layer is tested with `LLM_PROVIDER=stub` so the tests are
+deterministic and free. The stub builds schema-correct outputs from each
+window's anomaly content, exercising the orchestrator wiring (window selection,
+observer fan-out, Window Analyst field notes — none dropped — and the
+Weaver → Editor synthesis).
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from agents._extract import (
     extract_vocab_events,
 )
 from agents.orchestrator import build_report
-from agents.schemas import FinalReport, IntegratedBehavioralReport
+from agents.schemas import FinalReport, WindowAnalysis
 from agents.windows import select_windows
 from pipeline.io.parquet import load_df_parquet_safe
 
@@ -30,7 +30,7 @@ FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "tiny_master_df.par
 
 @pytest.fixture(autouse=True)
 def _force_stub_provider(monkeypatch: pytest.MonkeyPatch) -> None:
-    """All M4 tests run against the stub provider — never the real LLM."""
+    """All agent-chain tests run against the stub provider — never the real LLM."""
     monkeypatch.setenv("LLM_PROVIDER", "stub")
 
 
@@ -46,7 +46,7 @@ def master_df() -> pd.DataFrame:
 
 def test_select_windows_finds_two_engineered_ranges(master_df: pd.DataFrame) -> None:
     """The committed fixture has engineered anomalies at [5.0-6.0] blink and
-    [22.0-23.5] audio. Window selection should surface both as windows."""
+    [22.0-23.5] audio. Window selection should surface both as active windows."""
     windows = select_windows(master_df)
     assert len(windows) >= 2
     starts = [round(w.start, 1) for w in windows]
@@ -56,7 +56,6 @@ def test_select_windows_finds_two_engineered_ranges(master_df: pd.DataFrame) -> 
 
 def test_select_windows_modality_tags(master_df: pd.DataFrame) -> None:
     windows = select_windows(master_df)
-    # The blink window covers Visual; the audio window covers Audio.
     visual_window = next(w for w in windows if 5.0 <= w.start <= 6.0)
     audio_window = next(w for w in windows if 22.0 <= w.start <= 23.5)
     assert "Visual" in visual_window.modalities_with_anomalies
@@ -73,7 +72,6 @@ def test_select_windows_returns_empty_for_empty_df() -> None:
 
 
 def test_extract_visual_events_finds_blink(master_df: pd.DataFrame) -> None:
-    # The fixture's blink anomaly is at Time = 5.0–6.0
     slice_df = master_df[(master_df["Time"] >= 5.0) & (master_df["Time"] <= 6.0)].reset_index(
         drop=True
     )
@@ -112,54 +110,68 @@ def test_extract_transcript_slice_handles_missing_transcript() -> None:
 
 
 @pytest.mark.asyncio
-async def test_build_report_drops_empty_windows(master_df: pd.DataFrame) -> None:
-    """The stub returns empty `key_insights` for single-modality windows; the
-    orchestrator should silently drop them from the public output."""
-    public_reports, final = await build_report(master_df, speaker_label="B", transcript_df=None)
+async def test_build_report_keeps_all_windows(master_df: pd.DataFrame) -> None:
+    """No window is dropped: every selected window yields a WindowAnalysis with
+    a non-empty narrative (the whole point of the rewrite)."""
+    journal, final = await build_report(master_df, speaker_label="B", transcript_df=None)
     assert isinstance(final, FinalReport)
-    # Public output excludes the single-modality windows ⇒ count < windows-selected count.
-    # The fixture's blink-only window has only Visual events ⇒ dropped.
-    # The audio window has Audio events only ⇒ dropped (Pattern Detector needs ≥2 modalities).
-    # In stub mode, empty key_insights drops the window. Combined window (if
-    # ranges merge) could have both → kept.
-    for r in public_reports:
-        assert r.key_insights, "Reports with empty key_insights should have been dropped"
+    assert len(journal) == len(select_windows(master_df))
+    for note in journal:
+        assert isinstance(note, WindowAnalysis)
+        assert note.narrative, "every window must have a narrative"
+    # journal is chronological
+    assert [n.time_start for n in journal] == sorted(n.time_start for n in journal)
+
+
+@pytest.mark.asyncio
+async def test_build_report_produces_highlights_from_active_windows(
+    master_df: pd.DataFrame,
+) -> None:
+    """The active (anomaly) windows should surface as signals → highlights."""
+    journal, final = await build_report(master_df, speaker_label="B")
+    assert any(note.signals for note in journal), "active windows should yield signals"
+    assert final.highlights, "highlights should be drawn from the journal's signals"
+    for h in final.highlights:
+        assert h.ts_start <= h.ts_end
 
 
 @pytest.mark.asyncio
 async def test_build_report_returns_final_report_even_with_no_windows() -> None:
-    """An empty master_df should still produce a baseline FinalReport — the
-    API contract is that `/api/jobs/{id}/report` always returns something."""
+    """An empty master_df still produces a baseline FinalReport — the API
+    contract is that `/api/jobs/{id}/report` always returns something."""
     empty = pd.DataFrame()
-    reports, final = await build_report(empty, speaker_label="B")
-    assert reports == []
+    journal, final = await build_report(empty, speaker_label="B")
+    assert journal == []
     assert isinstance(final, FinalReport)
-    assert final.executive_summary  # the stub fills a baseline message
+    assert final.headline  # the stub fills a baseline headline
 
 
 @pytest.mark.asyncio
 async def test_build_report_invokes_on_window_done(master_df: pd.DataFrame) -> None:
     """The optional `on_window_done` callback is the hook the backend uses to
-    stream per-window reports to the frontend as they complete."""
-    seen: list[IntegratedBehavioralReport] = []
+    stream per-window notes as they complete."""
+    seen: list[WindowAnalysis] = []
 
-    def cb(r: IntegratedBehavioralReport) -> None:
-        seen.append(r)
+    def cb(note: WindowAnalysis) -> None:
+        seen.append(note)
 
-    public_reports, _ = await build_report(master_df, speaker_label="B", on_window_done=cb)
-    assert len(seen) == len(public_reports)
+    journal, _ = await build_report(master_df, speaker_label="B", on_window_done=cb)
+    assert len(seen) == len(journal)
 
 
 @pytest.mark.asyncio
 async def test_build_report_with_transcript_populates_spoken_content(
     master_df: pd.DataFrame,
 ) -> None:
-    """When transcript data is available, the stub propagates the slice into
-    each CrossModalInsight's `spoken_content`."""
+    """When transcript data is available, the slice flows into each window's
+    `spoken_excerpt` and into the signals' `spoken_content`."""
     transcript = pd.DataFrame(
         [{"start": 0.0, "end": 30.0, "text": "claim about ML expertise", "speaker": "B"}]
     )
-    public_reports, _ = await build_report(master_df, speaker_label="B", transcript_df=transcript)
-    for r in public_reports:
-        for ins in r.key_insights:
-            assert ins.spoken_content  # always populated
+    journal, _ = await build_report(master_df, speaker_label="B", transcript_df=transcript)
+    spoken = [n for n in journal if n.signals]
+    assert spoken, "expected at least one window with signals"
+    for note in spoken:
+        assert "ML expertise" in note.spoken_excerpt
+        for s in note.signals:
+            assert s.spoken_content

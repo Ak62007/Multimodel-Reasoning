@@ -19,41 +19,69 @@ export interface JobList {
   total: number;
 }
 
-export type ToneLabel =
-  | "Strong_Positive"
-  | "Authentic"
-  | "Mostly_Authentic"
-  | "Mixed_Signals"
-  | "Concerning";
-
-export type PatternType = "Strength" | "Concern" | "Notable";
 export type Significance = "Low" | "Medium" | "High";
 export type Modality = "Visual" | "Audio" | "Verbal";
+export type Relation = "Correlation" | "Contradiction" | "Isolated";
+export type SignalKind = "Strength" | "Tell" | "Tension" | "Quirk" | "Shift";
+export type InterviewPhase = "Opening" | "Early" | "Middle" | "Late" | "Closing";
 
-export interface CrossModalInsight {
+// One discrete finding inside a window (single- or cross-modal).
+export interface Signal {
   timestamp_start: number;
   timestamp_end: number;
+  modalities: Modality[];
+  relation: Relation;
+  kind: SignalKind;
+  headline: string;
+  evidence: string;
   spoken_content: string;
-  modalities_involved: Modality[];
-  pattern_type: PatternType;
+  interpretation: string;
   significance: Significance;
-  observation: string;
+}
+
+// One window's field note — the chronological "journal" entry.
+export interface WindowAnalysis {
+  time_start: number;
+  time_end: number;
+  phase: InterviewPhase;
+  position_pct: number;
+  spoken_excerpt: string;
+  visual_read: string;
+  audio_read: string;
+  verbal_read: string;
+  narrative: string;
+  window_interest: Significance;
+  signals: Signal[];
+}
+
+// A "go watch this moment" entry — the report's centrepiece.
+export interface Highlight {
+  ts_start: number;
+  ts_end: number;
+  title: string;
+  what_happened: string;
+  why_it_matters: string;
+  modalities: Modality[];
+  kind: SignalKind;
+  significance: Significance;
+}
+
+// A recurring pattern across multiple windows.
+export interface Thread {
+  title: string;
+  summary: string;
+  relation: Relation;
+  occurrences: number[];
   interpretation: string;
 }
 
-export interface IntegratedBehavioralReport {
-  time_range_start: number;
-  time_range_end: number;
-  overall_window_tone: ToneLabel;
-  executive_summary: string;
-  key_insights: CrossModalInsight[];
-}
-
 export interface FinalReport {
-  executive_summary: string;
-  behavioral_strengths: string;
-  vulnerabilities_and_triggers: string;
-  areas_for_improvement: string;
+  headline: string;
+  overview: string;
+  behavioral_arc: string;
+  highlights: Highlight[];
+  threads: Thread[];
+  coaching_notes: string;
 }
 
 export interface ReportResponse {
@@ -62,7 +90,7 @@ export interface ReportResponse {
 }
 
 export interface SegmentsResponse {
-  items: IntegratedBehavioralReport[];
+  items: WindowAnalysis[];
 }
 
 export interface LogsResponse {

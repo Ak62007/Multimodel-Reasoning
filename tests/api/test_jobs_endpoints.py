@@ -66,23 +66,25 @@ def test_full_lifecycle_upload_then_succeed(client: TestClient, tiny_parquet_pat
     segments_res = client.get(f"/api/jobs/{job_id}/segments")
     assert segments_res.status_code == 200
     segments = segments_res.json()["items"]
-    # The tiny fixture has two engineered anomalous windows; the stub Pattern
-    # Detector emits an insight only when ≥2 modalities have anomalies, so
-    # the per-window count is data-dependent. What we guarantee is shape.
+    # Every selected window yields a WindowAnalysis field note (none dropped).
+    assert segments, "expected at least the engineered anomaly windows"
     for seg in segments:
-        assert "time_range_start" in seg
-        assert "time_range_end" in seg
-        assert "overall_window_tone" in seg
-        assert "key_insights" in seg
+        assert "time_start" in seg
+        assert "time_end" in seg
+        assert "phase" in seg
+        assert seg["narrative"], "every window note must have a narrative"
+        assert "signals" in seg
 
     report_res = client.get(f"/api/jobs/{job_id}/report")
     assert report_res.status_code == 200
     body = report_res.json()
-    assert body["markdown"].startswith("# Executive Summary")
-    assert body["structured"]["executive_summary"]
-    assert body["structured"]["behavioral_strengths"]
-    assert body["structured"]["vulnerabilities_and_triggers"]
-    assert body["structured"]["areas_for_improvement"]
+    assert body["markdown"].startswith("# ")
+    structured = body["structured"]
+    assert structured["headline"]
+    assert structured["overview"]
+    assert structured["behavioral_arc"]
+    assert "highlights" in structured
+    assert "threads" in structured
 
 
 def test_list_jobs_pagination(client: TestClient, tiny_parquet_path: Path) -> None:

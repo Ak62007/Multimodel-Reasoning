@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from agents.schemas import FinalReport, IntegratedBehavioralReport
+from agents.schemas import FinalReport, WindowAnalysis
 
 
 class HealthResponse(BaseModel):
@@ -41,7 +41,7 @@ class ReportOut(BaseModel):
 
 
 class SegmentsOut(BaseModel):
-    items: list[IntegratedBehavioralReport]
+    items: list[WindowAnalysis]
 
 
 class LogsOut(BaseModel):

@@ -90,6 +90,70 @@ def extract_vocab_events(rows: pd.DataFrame) -> list[VocabularyAnomalyEvent]:
     return _events_from(rows, _VERBAL_COLUMNS, default_tag="Verbal anomaly")
 
 
+# --------------------------------------------------------------------------
+# Raw-signal summaries — give the observers the actual values for the window,
+# not just the anomaly events, so they can describe baseline behaviour too.
+# (label, primary raw key) per master_df column.
+# --------------------------------------------------------------------------
+_VISUAL_RAW = {
+    "blinking_data": ("blink", "intensity"),
+    "gaze_data": ("gaze-H", "horizontal_deviation"),
+    "jaw_movement_data": ("jaw-open", "open"),
+    "smile_data": ("smile", "intensity"),
+}
+_AUDIO_RAW = {
+    "loudness_data": ("loudness", "level"),
+    "average_pitch_data": ("pitch", "relative_level"),
+    "pitch_standard_deviation": ("expressiveness", "expressiveness"),
+}
+_VERBAL_RAW = {
+    "words_per_sec": ("rate", "speaking_rate"),
+    "filler_words_usage": ("fillers", "filler_percentage_level"),
+    "pauses_taken": ("pauses", "pause_percentage_level"),
+}
+
+
+def _summarize_raw(rows: pd.DataFrame, raw_map: Mapping[str, tuple[str, str]]) -> str:
+    """One compact line: per-metric mean + anomaly count + peak deviation."""
+    parts: list[str] = []
+    for col, (label, key) in raw_map.items():
+        if col not in rows.columns:
+            continue
+        vals: list[float] = []
+        n_anom = 0
+        peak_rz = 0.0
+        for cell in rows[col]:
+            if not isinstance(cell, dict):
+                continue
+            v = cell.get(key)
+            if isinstance(v, (int, float)):
+                vals.append(float(v))
+            if cell.get("is_anomalous"):
+                n_anom += 1
+            rz = cell.get("rz_score")
+            if isinstance(rz, (int, float)):
+                peak_rz = max(peak_rz, abs(float(rz)))
+        if not vals and n_anom == 0:
+            continue
+        seg = f"{label} avg={sum(vals) / len(vals):.2f}" if vals else label
+        if n_anom:
+            seg += f" [{n_anom} anomalous, peak {peak_rz:.1f}σ]"
+        parts.append(seg)
+    return "; ".join(parts) if parts else "all signals at baseline"
+
+
+def summarize_visual_raw(rows: pd.DataFrame) -> str:
+    return _summarize_raw(rows, _VISUAL_RAW)
+
+
+def summarize_audio_raw(rows: pd.DataFrame) -> str:
+    return _summarize_raw(rows, _AUDIO_RAW)
+
+
+def summarize_vocab_raw(rows: pd.DataFrame) -> str:
+    return _summarize_raw(rows, _VERBAL_RAW)
+
+
 def extract_transcript_slice(
     transcript_df: pd.DataFrame | None,
     start: float,
@@ -120,4 +184,7 @@ __all__ = [
     "extract_transcript_slice",
     "extract_visual_events",
     "extract_vocab_events",
+    "summarize_audio_raw",
+    "summarize_visual_raw",
+    "summarize_vocab_raw",
 ]

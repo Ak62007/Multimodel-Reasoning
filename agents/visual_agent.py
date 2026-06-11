@@ -18,10 +18,13 @@ from agents.schemas import VisualAnomalyEvent, VisualObservation
 _log = logging.getLogger(__name__)
 
 
-def _format_input(start: float, end: float, events: list[VisualAnomalyEvent]) -> str:
+def _format_input(
+    start: float, end: float, events: list[VisualAnomalyEvent], raw_summary: str
+) -> str:
+    lines = [f"Time range: {start:.2f}–{end:.2f}s.", f"Raw signals: {raw_summary or 'n/a'}"]
     if not events:
-        return f"Time range: {start:.2f}–{end:.2f}s.\nNo visual anomalies detected."
-    lines = [f"Time range: {start:.2f}–{end:.2f}s."]
+        lines.append("No visual anomalies detected.")
+        return "\n".join(lines)
     for ev in events:
         lines.append(
             f"- [{ev.feature_type}] {ev.behavioral_tag} at "
@@ -36,16 +39,17 @@ async def run_visual_observer(
     end: float,
     events: list[VisualAnomalyEvent],
     *,
+    raw_summary: str = "",
     settings: AgentSettings | None = None,
 ) -> VisualObservation:
     settings = settings or get_agent_settings()
     if settings.llm_provider == "stub":
-        return _stub.stub_visual(start, end, events)
+        return _stub.stub_visual(start, end, events, raw_summary)
 
     agent = make_agent(
         system_prompt=VISUAL_PROMPT, output_type=VisualObservation, settings=settings
     )
-    user_msg = _format_input(start, end, events)
+    user_msg = _format_input(start, end, events, raw_summary)
 
     async def _call() -> VisualObservation:
         result = await agent.run(user_msg)

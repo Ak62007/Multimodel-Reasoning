@@ -38,7 +38,11 @@ class Job(SQLModel, table=True):
         if self.started_at is None:
             return None
         end = self.finished_at or _utc_now()
-        return (end - self.started_at).total_seconds()
+        # Datetimes read back from SQLite are tz-naive but represent UTC;
+        # coerce both sides so we never mix naive/aware in the subtraction.
+        start = self.started_at if self.started_at.tzinfo else self.started_at.replace(tzinfo=UTC)
+        end = end if end.tzinfo else end.replace(tzinfo=UTC)
+        return (end - start).total_seconds()
 
 
 __all__ = ["Job", "JobStatus"]

@@ -8,9 +8,10 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse, JSONResponse
+from pydantic import ValidationError
 from sqlmodel import Session
 
-from agents.schemas import FinalReport, IntegratedBehavioralReport
+from agents.schemas import FinalReport, WindowAnalysis
 from backend.app.config import Settings, get_settings
 from backend.app.deps import get_session_dep
 from backend.app.models import Job
@@ -20,6 +21,11 @@ from pipeline.io.parquet import load_df_parquet_safe
 
 _log = logging.getLogger(__name__)
 router = APIRouter(prefix="/jobs/{job_id}", tags=["reports"])
+
+_OUTDATED_DETAIL = (
+    "This analysis was produced by an older version of the agentic layer and its "
+    "report format is no longer supported. Please re-run the analysis."
+)
 
 
 def _require_job(job_id: str, session: Session) -> Job:
@@ -44,7 +50,11 @@ def get_segments(
             detail=f"No segments yet — job is {job.status}",
         )
     payload = json.loads(segments_path.read_text())
-    return SegmentsOut(items=[IntegratedBehavioralReport(**r) for r in payload])
+    try:
+        return SegmentsOut(items=[WindowAnalysis(**r) for r in payload])
+    except ValidationError:
+        _log.warning("Outdated segments format for job %s", job_id)
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=_OUTDATED_DETAIL) from None
 
 
 @router.get("/report", response_model=ReportOut)
@@ -62,7 +72,11 @@ def get_report(
             status.HTTP_404_NOT_FOUND,
             detail=f"No report yet — job is {job.status}",
         )
-    structured = FinalReport(**json.loads(report_path.read_text()))
+    try:
+        structured = FinalReport(**json.loads(report_path.read_text()))
+    except ValidationError:
+        _log.warning("Outdated report format for job %s", job_id)
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=_OUTDATED_DETAIL) from None
     markdown = md_path.read_text() if md_path.exists() else ""
     return ReportOut(markdown=markdown, structured=structured)
 

@@ -1,14 +1,14 @@
 import { useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import { jobsApi } from "../api/jobs";
-import type { IntegratedBehavioralReport, ToneLabel } from "../types/api";
 import { pushRecentJob, setActiveJobId } from "../lib/storage";
 import { formatDuration } from "../lib/time";
-import { CrossModalSegment } from "../components/CrossModalSegment";
-import { FinalConclusion } from "../components/FinalConclusion";
-import { ToneBadge } from "../components/ToneBadge";
+import { HighlightCard } from "../components/HighlightCard";
+import { ThreadCard } from "../components/ThreadCard";
+import { WindowNote } from "../components/WindowNote";
 
 export default function ReportScreen() {
   const { id = "" } = useParams();
@@ -138,10 +138,10 @@ export default function ReportScreen() {
     );
   }
 
-  const segments = segmentsQ.data?.items ?? [];
+  const journal = segmentsQ.data?.items ?? [];
   const report = reportQ.data?.structured;
-  const totalPatterns = segments.reduce((s, x) => s + x.key_insights.length, 0);
-  const overallTone = computeOverallTone(segments);
+  const highlights = report?.highlights ?? [];
+  const threads = report?.threads ?? [];
 
   return (
     <main className="mx-auto max-w-report px-4 pt-10 pb-16 space-y-10">
@@ -150,6 +150,11 @@ export default function ReportScreen() {
         <h1 className="text-2xl font-semibold" data-testid="report-filename">
           {jobQ.data.filename}
         </h1>
+        {report?.headline && (
+          <p className="text-base text-neutral-800" data-testid="report-headline">
+            {report.headline}
+          </p>
+        )}
         <div className="text-xs text-neutral-500 flex gap-4">
           <span>Analyzed {new Date(jobQ.data.updated_at).toLocaleString()}</span>
           {jobQ.data.duration_sec != null && (
@@ -175,87 +180,88 @@ export default function ReportScreen() {
         </div>
       </header>
 
-      {/* Section A — Executive Summary */}
+      {/* Section A — Overview + Behavioral arc */}
       {report && (
-        <section className="space-y-4" data-testid="section-summary">
-          <p className="text-base leading-relaxed text-neutral-800">
-            {report.executive_summary}
-          </p>
-          <div className="flex flex-wrap gap-3 text-xs">
-            <Chip label="Patterns detected" value={String(totalPatterns)} />
-            {overallTone && <Chip label="Overall tone" value={<ToneBadge tone={overallTone} />} />}
-          </div>
+        <section className="space-y-6" data-testid="section-summary">
+          <Prose title="Overview" body={report.overview} />
+          <Prose title="Behavioral Arc" body={report.behavioral_arc} />
         </section>
       )}
 
-      {/* Section B — Cross-Modal Patterns */}
-      <section className="space-y-4" data-testid="section-patterns">
+      {/* Section B — Highlights (the hero: jump-back-to-the-video list) */}
+      <section className="space-y-4" data-testid="section-highlights">
         <h2 className="text-xl font-semibold border-b border-neutral-200 pb-2">
-          Cross-Modal Patterns
+          Highlights — moments worth re-watching
         </h2>
-        {segments.length === 0 ? (
+        {highlights.length === 0 ? (
           <p
             className="rounded-lg border border-neutral-200 bg-neutral-50 p-5 text-sm text-neutral-700"
-            data-testid="no-patterns"
+            data-testid="no-highlights"
           >
-            No notable cross-modal patterns detected — the candidate&apos;s behavior,
-            voice, and words remained consistent throughout the interview.
+            No standout moments surfaced — the candidate&apos;s behavior, voice, and
+            words stayed consistent throughout.
           </p>
         ) : (
-          <div className="space-y-5">
-            {segments.map((s, i) => (
-              <CrossModalSegment key={i} segment={s} />
+          <div className="space-y-4">
+            {highlights.map((h, i) => (
+              <HighlightCard key={i} highlight={h} />
             ))}
           </div>
         )}
       </section>
 
-      {/* Section C — Final Conclusion */}
-      <section className="space-y-4">
+      {/* Section C — Recurring threads */}
+      {threads.length > 0 && (
+        <section className="space-y-4" data-testid="section-threads">
+          <h2 className="text-xl font-semibold border-b border-neutral-200 pb-2">
+            Recurring Threads
+          </h2>
+          <div className="space-y-4">
+            {threads.map((t, i) => (
+              <ThreadCard key={i} thread={t} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Section D — Window-by-window journal */}
+      <section className="space-y-4" data-testid="section-journal">
         <h2 className="text-xl font-semibold border-b border-neutral-200 pb-2">
-          Final Conclusion
+          Window-by-Window Journal
         </h2>
-        {report && <FinalConclusion report={report} />}
-        <div>
-          <button
-            type="button"
-            onClick={downloadMarkdown}
-            className="mt-4 rounded-lg bg-neutral-900 text-white px-4 py-2 text-sm hover:bg-neutral-800"
-          >
-            Download as Markdown
-          </button>
-        </div>
+        {journal.length === 0 ? (
+          <p className="text-sm text-neutral-600" data-testid="no-journal">
+            No analysis windows were produced for this interview.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {journal.map((note, i) => (
+              <WindowNote key={i} note={note} />
+            ))}
+          </div>
+        )}
       </section>
+
+      {/* Section E — Coaching notes */}
+      {report?.coaching_notes && (
+        <section className="space-y-4" data-testid="section-coaching">
+          <Prose title="Coaching Notes" body={report.coaching_notes} />
+        </section>
+      )}
     </main>
   );
 }
 
-function Chip({ label, value }: { label: string; value: React.ReactNode }) {
+function Prose({ title, body }: { title: string; body: string }) {
+  if (!body) return null;
   return (
-    <div className="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 flex items-center gap-2">
-      <span className="text-neutral-500">{label}:</span>
-      <span className="font-medium text-neutral-900">{value}</span>
-    </div>
+    <article className="space-y-2" data-testid="prose-section">
+      <h2 className="text-lg font-semibold text-neutral-900">{title}</h2>
+      <div className="prose prose-sm max-w-none text-neutral-800">
+        <ReactMarkdown>{body}</ReactMarkdown>
+      </div>
+    </article>
   );
-}
-
-function computeOverallTone(
-  segments: IntegratedBehavioralReport[],
-): ToneLabel | null {
-  if (segments.length === 0) return null;
-  const counts = new Map<ToneLabel, number>();
-  for (const s of segments) {
-    counts.set(s.overall_window_tone, (counts.get(s.overall_window_tone) ?? 0) + 1);
-  }
-  let best: ToneLabel | null = null;
-  let bestN = 0;
-  for (const [tone, n] of counts) {
-    if (n > bestN) {
-      best = tone;
-      bestN = n;
-    }
-  }
-  return best;
 }
 
 function ReportSkeleton() {

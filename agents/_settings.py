@@ -14,9 +14,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class AgentSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    llm_provider: Literal["groq", "stub"] = "groq"
+    # Stub-vs-real gate only. The *actual* provider is derived from the
+    # `llm_model` prefix (e.g. "google-gla:gemini-2.5-flash" -> Gemini).
+    llm_provider: Literal["groq", "openai", "anthropic", "google-gla", "stub"] = "groq"
     llm_model: str = "llama-3.3-70b-versatile"
     groq_api_key: str | None = None
+    gemini_api_key: str | None = None
     agent_max_concurrency: int = 4
 
 
