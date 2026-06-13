@@ -51,7 +51,8 @@ frontend/**/*.tsbuildinfo
 # Stray JS transpiles from `tsc -b` (build now uses --noEmit, but defend the tree)
 frontend/src/**/*.js
 frontend/tests/**/*.js
-frontend/vite.config.js
+frontend/*.config.js
+frontend/*.config.d.ts
 
 # Editor
 .idea/
