@@ -12,8 +12,6 @@ const ACCEPT = ".mp4,.mov,.avi,.webm,.parquet";
 export default function UploadScreen() {
   const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
-  const [speakerLabel, setSpeakerLabel] = useState("B");
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -23,7 +21,7 @@ export default function UploadScreen() {
   const submit = useMutation({
     mutationFn: () => {
       if (!file) throw new Error("No file selected");
-      return jobsApi.createJob(file, speakerLabel);
+      return jobsApi.createJob(file);
     },
     onSuccess: (job) => {
       setActiveJobId(job.id);
@@ -35,17 +33,31 @@ export default function UploadScreen() {
   });
 
   return (
-    <main className="mx-auto max-w-xl px-4 pt-16 pb-12">
-      <header className="text-center mb-8">
-        <h1 className="text-3xl font-semibold tracking-tight">MMR</h1>
-        <p className="mt-2 text-sm text-neutral-600">
-          Multimodal behavioral analysis for interview videos
+    <main className="mx-auto max-w-xl px-4 pt-10 pb-12">
+      <button
+        type="button"
+        onClick={() => navigate("/")}
+        className="text-xs text-neutral-500 transition hover:text-sand"
+        data-testid="back-to-intro"
+      >
+        ← About
+      </button>
+      <header className="text-center mb-8 mt-6">
+        <h1 className="font-display text-4xl font-light tracking-tight text-stone-100">
+          Analyze an interview
+        </h1>
+        <p className="mt-2 text-sm text-neutral-500">
+          Drop in a recording and MMR reads face, voice and words.
         </p>
       </header>
 
-      <section className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm space-y-5">
+      <section className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6 space-y-5">
         <div
-          className="border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center hover:bg-neutral-50 cursor-pointer transition"
+          className={`group rounded-xl border border-dashed p-8 text-center cursor-pointer transition ${
+            file
+              ? "border-sand/40 bg-sand/[0.04]"
+              : "border-white/15 hover:border-sand/40 hover:bg-white/[0.03]"
+          }`}
           onClick={() => inputRef.current?.click()}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
@@ -67,51 +79,35 @@ export default function UploadScreen() {
             }}
           />
           {file ? (
-            <div className="text-sm text-neutral-700">
-              <div className="font-medium">{file.name}</div>
-              <div className="text-neutral-500 mt-1">
-                {(file.size / (1024 * 1024)).toFixed(1)} MB
+            <div className="text-sm">
+              <div className="font-medium text-neutral-100">{file.name}</div>
+              <div className="mt-1 text-neutral-500">
+                {(file.size / (1024 * 1024)).toFixed(1)} MB · click to replace
               </div>
             </div>
           ) : (
-            <div className="text-sm text-neutral-500">
+            <div className="text-sm text-neutral-400">
               <div>Drop a video here, or click to browse</div>
-              <div className="mt-1 text-xs">
-                .mp4, .mov, .avi, .webm
+              <div className="mt-1 font-mono text-[11px] text-neutral-600">
+                .mp4 · .mov · .avi · .webm
               </div>
             </div>
           )}
         </div>
 
-        <details
-          open={advancedOpen}
-          onToggle={(e) => setAdvancedOpen((e.currentTarget as HTMLDetailsElement).open)}
-        >
-          <summary className="text-xs text-neutral-500 cursor-pointer select-none">
-            Advanced
-          </summary>
-          <div className="mt-3 space-y-2 pl-2">
-            <label className="block text-xs">
-              <span className="text-neutral-600">Speaker label</span>
-              <input
-                type="text"
-                value={speakerLabel}
-                onChange={(e) => setSpeakerLabel(e.target.value)}
-                className="mt-1 block w-20 rounded border border-neutral-300 px-2 py-1 text-sm"
-                data-testid="speaker-label"
-              />
-            </label>
-          </div>
-        </details>
+        <p className="flex items-center gap-2 text-xs text-neutral-500">
+          <span className="h-1 w-1 rounded-full bg-sand/70" />
+          The interviewee is detected automatically — no setup needed.
+        </p>
 
         <button
           type="button"
           disabled={!file || submit.isPending}
           onClick={() => submit.mutate()}
-          className="w-full rounded-lg bg-neutral-900 text-white py-2.5 text-sm font-medium hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition"
+          className="w-full rounded-xl bg-sand/[0.12] py-2.5 text-sm font-semibold text-sand ring-1 ring-inset ring-sand/40 shadow-[0_0_30px_-8px_rgba(203,180,145,0.55)] transition duration-300 hover:bg-sand/[0.18] hover:text-[#e7d8b8] hover:ring-sand/60 disabled:cursor-not-allowed disabled:bg-white/[0.03] disabled:text-neutral-600 disabled:ring-white/10 disabled:shadow-none"
           data-testid="start-button"
         >
-          {submit.isPending ? "Uploading…" : "Start Analysis"}
+          {submit.isPending ? "Uploading…" : "Start analysis"}
         </button>
       </section>
 

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { jobsApi } from "../api/jobs";
 import { STAGE_LABELS } from "../types/api";
 import { setActiveJobId } from "../lib/storage";
-import { formatElapsed } from "../lib/time";
+import { formatElapsed, parseServerDate } from "../lib/time";
 import { StageChecklist } from "../components/StageChecklist";
 
 export default function AnalyzingScreen() {
@@ -32,7 +32,7 @@ export default function AnalyzingScreen() {
 
   useEffect(() => {
     if (!job?.created_at) return;
-    const start = new Date(job.created_at).getTime();
+    const start = parseServerDate(job.created_at).getTime();
     const tick = () => setElapsed(Math.max(0, (Date.now() - start) / 1000));
     tick();
     const interval = setInterval(tick, 1000);
@@ -49,7 +49,7 @@ export default function AnalyzingScreen() {
     onSuccess: () => {
       setActiveJobId(null);
       toast.success("Analysis cancelled.");
-      navigate("/");
+      navigate("/upload");
     },
     onError: (err: Error) => toast.error(err.message ?? "Could not cancel"),
   });
@@ -57,7 +57,7 @@ export default function AnalyzingScreen() {
   if (error) {
     return (
       <main className="mx-auto max-w-xl px-4 pt-16">
-        <p className="text-red-600">Failed to load job: {(error as Error).message}</p>
+        <p className="text-rose-300">Failed to load job: {(error as Error).message}</p>
       </main>
     );
   }
@@ -67,33 +67,36 @@ export default function AnalyzingScreen() {
   const friendly = job.current_stage ? STAGE_LABELS[job.current_stage] ?? job.current_stage : "Preparing…";
 
   return (
-    <main className="mx-auto max-w-xl px-4 pt-12 pb-12">
+    <main className="mx-auto max-w-xl px-4 pt-16 pb-12">
       <section
-        className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm space-y-5"
+        className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6 space-y-6"
         data-testid="analyzing-card"
       >
         <header>
-          <h2 className="text-xs uppercase tracking-wide text-neutral-500">
+          <h2 className="flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-sand/80">
+            <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-sand" />
             Analyzing
           </h2>
-          <h1 className="text-lg font-semibold mt-0.5" data-testid="filename">
+          <h1 className="mt-2 text-lg font-medium text-neutral-100" data-testid="filename">
             {job.filename}
           </h1>
         </header>
 
         <div>
-          <div className="flex justify-between text-xs text-neutral-600 mb-1.5">
+          <div className="flex justify-between text-xs text-neutral-400 mb-2">
             <span data-testid="stage-label">{friendly}</span>
-            <span data-testid="progress-percent">{Math.round(job.progress * 100)}%</span>
+            <span className="font-mono text-neutral-500" data-testid="progress-percent">
+              {Math.round(job.progress * 100)}%
+            </span>
           </div>
-          <div className="w-full h-1.5 rounded-full bg-neutral-200 overflow-hidden">
+          <div className="w-full h-1 rounded-full bg-white/10 overflow-hidden">
             <div
-              className="h-full bg-neutral-900 transition-all"
+              className="h-full bg-sand transition-all duration-500"
               style={{ width: `${Math.max(2, job.progress * 100)}%` }}
               data-testid="progress-bar"
             />
           </div>
-          <div className="mt-2 text-xs text-neutral-500" data-testid="elapsed">
+          <div className="mt-2 font-mono text-xs text-neutral-500" data-testid="elapsed">
             Running for {formatElapsed(elapsed)}
           </div>
         </div>
@@ -104,7 +107,7 @@ export default function AnalyzingScreen() {
           type="button"
           onClick={() => cancel.mutate()}
           disabled={cancel.isPending}
-          className="w-full rounded-lg border border-neutral-300 text-neutral-700 py-2 text-sm hover:bg-neutral-50 transition"
+          className="w-full rounded-xl border border-white/10 text-neutral-300 py-2 text-sm transition hover:border-white/20 hover:bg-white/[0.03]"
           data-testid="cancel-button"
         >
           {cancel.isPending ? "Cancelling…" : "Cancel"}

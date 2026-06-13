@@ -16,15 +16,17 @@ export function StageChecklist({ currentStage }: Props) {
             key={stage}
             data-testid={`stage-${stage}`}
             data-state={state}
-            className={`flex items-center gap-2 ${
-              state === "active" ? "text-neutral-900 font-medium animate-pulse" : ""
-            } ${state === "pending" ? "text-neutral-400" : ""}`}
+            className={`flex items-center gap-2.5 ${
+              state === "active" ? "text-neutral-100 font-medium" : ""
+            } ${state === "done" ? "text-neutral-400" : ""} ${
+              state === "pending" ? "text-neutral-600" : ""
+            }`}
           >
             <span
               aria-hidden="true"
               className={`inline-block w-4 text-center ${
-                state === "done" ? "text-green-600" : ""
-              }`}
+                state === "done" || state === "active" ? "text-sand" : ""
+              } ${state === "active" ? "animate-pulse-dot" : ""}`}
             >
               {state === "done" ? "✓" : state === "active" ? "◐" : "◯"}
             </span>

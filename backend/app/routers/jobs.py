@@ -79,7 +79,7 @@ async def create_job(
     settings: Settings = Depends(get_settings),
     session: Session = Depends(get_session_dep),
     video: UploadFile = FastAPIFile(...),
-    speaker_label: str = Form("B"),
+    speaker_label: str = Form("auto"),
 ) -> JobOut:
     job_id = uuid.uuid4().hex[:12]
 

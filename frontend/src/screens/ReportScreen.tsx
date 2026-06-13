@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { jobsApi } from "../api/jobs";
 import { pushRecentJob, setActiveJobId } from "../lib/storage";
-import { formatDuration } from "../lib/time";
+import { formatDuration, parseServerDate } from "../lib/time";
 import { HighlightCard } from "../components/HighlightCard";
 import { ThreadCard } from "../components/ThreadCard";
 import { WindowNote } from "../components/WindowNote";
@@ -68,7 +68,7 @@ export default function ReportScreen() {
 
   function newAnalysis() {
     setActiveJobId(null);
-    navigate("/");
+    navigate("/upload");
   }
 
   if (jobQ.isLoading) {
@@ -82,7 +82,7 @@ export default function ReportScreen() {
   if (!jobQ.data) {
     return (
       <main className="mx-auto max-w-report px-4 pt-12">
-        <p className="text-neutral-600">Job not found.</p>
+        <p className="text-neutral-500">Job not found.</p>
       </main>
     );
   }
@@ -91,15 +91,15 @@ export default function ReportScreen() {
     return (
       <main className="mx-auto max-w-report px-4 pt-12 pb-12 space-y-6">
         <section
-          className="rounded-lg border-2 border-red-300 bg-red-50 p-6 space-y-3"
+          className="rounded-2xl border border-rose-400/20 bg-rose-500/[0.06] p-6 space-y-3"
           data-testid="error-card"
         >
-          <h1 className="text-lg font-semibold text-red-900">Analysis failed</h1>
-          <p className="text-sm text-red-800">{jobQ.data.error ?? "Unknown error"}</p>
-          <details className="text-xs text-red-700">
+          <h1 className="text-lg font-medium text-rose-200">Analysis failed</h1>
+          <p className="text-sm text-rose-200/80">{jobQ.data.error ?? "Unknown error"}</p>
+          <details className="text-xs text-rose-200/70">
             <summary className="cursor-pointer">Show log</summary>
             <pre
-              className="mt-2 max-h-64 overflow-auto rounded bg-red-100 p-3 font-mono text-[11px] leading-relaxed"
+              className="mt-2 max-h-64 overflow-auto rounded-lg bg-black/30 p-3 font-mono text-[11px] leading-relaxed text-neutral-400"
               data-testid="error-log"
             >
               {logsQ.data?.lines.join("\n") ?? "(log unavailable)"}
@@ -110,7 +110,7 @@ export default function ReportScreen() {
           <button
             type="button"
             onClick={newAnalysis}
-            className="rounded-lg bg-neutral-900 text-white px-4 py-2 text-sm hover:bg-neutral-800"
+            className="rounded-xl bg-sand text-neutral-950 px-4 py-2 text-sm font-semibold transition hover:bg-[#d9c5a3]"
           >
             Try again
           </button>
@@ -120,7 +120,7 @@ export default function ReportScreen() {
               await jobsApi.deleteJob(id);
               newAnalysis();
             }}
-            className="rounded-lg border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-50"
+            className="rounded-xl border border-white/10 text-neutral-300 px-4 py-2 text-sm transition hover:border-white/20 hover:bg-white/[0.03]"
             data-testid="delete-failed-job"
           >
             Delete this job
@@ -133,7 +133,7 @@ export default function ReportScreen() {
   if (jobQ.data.status !== "succeeded") {
     return (
       <main className="mx-auto max-w-report px-4 pt-12">
-        <p className="text-neutral-600">Job is still {jobQ.data.status}.</p>
+        <p className="text-neutral-500">Job is still {jobQ.data.status}.</p>
       </main>
     );
   }
@@ -145,18 +145,21 @@ export default function ReportScreen() {
 
   return (
     <main className="mx-auto max-w-report px-4 pt-10 pb-16 space-y-10">
-      <header className="space-y-3 border-b border-neutral-200 pb-6">
-        <div className="text-xs uppercase tracking-wide text-neutral-500">Report</div>
-        <h1 className="text-2xl font-semibold" data-testid="report-filename">
+      <header className="space-y-3 border-b border-white/[0.07] pb-6">
+        <div className="flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-sand/70">
+          <span className="h-1.5 w-1.5 rounded-full bg-sand/70" />
+          Report
+        </div>
+        <h1 className="font-display text-3xl font-light text-stone-100" data-testid="report-filename">
           {jobQ.data.filename}
         </h1>
         {report?.headline && (
-          <p className="text-base text-neutral-800" data-testid="report-headline">
+          <p className="text-base text-neutral-300" data-testid="report-headline">
             {report.headline}
           </p>
         )}
-        <div className="text-xs text-neutral-500 flex gap-4">
-          <span>Analyzed {new Date(jobQ.data.updated_at).toLocaleString()}</span>
+        <div className="flex gap-4 font-mono text-xs text-neutral-500">
+          <span>Analyzed {parseServerDate(jobQ.data.updated_at).toLocaleString()}</span>
           {jobQ.data.duration_sec != null && (
             <span>Duration {formatDuration(jobQ.data.duration_sec)}</span>
           )}
@@ -165,7 +168,7 @@ export default function ReportScreen() {
           <button
             type="button"
             onClick={downloadMarkdown}
-            className="rounded-lg bg-neutral-900 text-white px-4 py-2 text-sm hover:bg-neutral-800"
+            className="rounded-xl bg-sand text-neutral-950 px-4 py-2 text-sm font-semibold transition hover:bg-[#d9c5a3]"
             data-testid="download-md"
           >
             Download as Markdown
@@ -173,7 +176,7 @@ export default function ReportScreen() {
           <button
             type="button"
             onClick={newAnalysis}
-            className="rounded-lg border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-50"
+            className="rounded-xl border border-white/10 text-neutral-300 px-4 py-2 text-sm transition hover:border-white/20 hover:bg-white/[0.03]"
           >
             New analysis
           </button>
@@ -190,12 +193,12 @@ export default function ReportScreen() {
 
       {/* Section B — Highlights (the hero: jump-back-to-the-video list) */}
       <section className="space-y-4" data-testid="section-highlights">
-        <h2 className="text-xl font-semibold border-b border-neutral-200 pb-2">
+        <h2 className="font-display text-2xl font-light text-stone-100 border-b border-white/[0.07] pb-2">
           Highlights — moments worth re-watching
         </h2>
         {highlights.length === 0 ? (
           <p
-            className="rounded-lg border border-neutral-200 bg-neutral-50 p-5 text-sm text-neutral-700"
+            className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5 text-sm text-neutral-400"
             data-testid="no-highlights"
           >
             No standout moments surfaced — the candidate&apos;s behavior, voice, and
@@ -213,7 +216,7 @@ export default function ReportScreen() {
       {/* Section C — Recurring threads */}
       {threads.length > 0 && (
         <section className="space-y-4" data-testid="section-threads">
-          <h2 className="text-xl font-semibold border-b border-neutral-200 pb-2">
+          <h2 className="font-display text-2xl font-light text-stone-100 border-b border-white/[0.07] pb-2">
             Recurring Threads
           </h2>
           <div className="space-y-4">
@@ -226,11 +229,11 @@ export default function ReportScreen() {
 
       {/* Section D — Window-by-window journal */}
       <section className="space-y-4" data-testid="section-journal">
-        <h2 className="text-xl font-semibold border-b border-neutral-200 pb-2">
+        <h2 className="font-display text-2xl font-light text-stone-100 border-b border-white/[0.07] pb-2">
           Window-by-Window Journal
         </h2>
         {journal.length === 0 ? (
-          <p className="text-sm text-neutral-600" data-testid="no-journal">
+          <p className="text-sm text-neutral-500" data-testid="no-journal">
             No analysis windows were produced for this interview.
           </p>
         ) : (
@@ -256,8 +259,8 @@ function Prose({ title, body }: { title: string; body: string }) {
   if (!body) return null;
   return (
     <article className="space-y-2" data-testid="prose-section">
-      <h2 className="text-lg font-semibold text-neutral-900">{title}</h2>
-      <div className="prose prose-sm max-w-none text-neutral-800">
+      <h2 className="font-display text-xl font-light text-stone-100">{title}</h2>
+      <div className="prose prose-sm prose-invert max-w-none text-[15px] leading-relaxed text-neutral-300 prose-headings:text-neutral-100 prose-strong:text-neutral-100 prose-a:text-sand">
         <ReactMarkdown>{body}</ReactMarkdown>
       </div>
     </article>
@@ -267,10 +270,10 @@ function Prose({ title, body }: { title: string; body: string }) {
 function ReportSkeleton() {
   return (
     <div className="space-y-4 animate-pulse">
-      <div className="h-8 w-2/3 bg-neutral-200 rounded" />
-      <div className="h-4 w-1/3 bg-neutral-200 rounded" />
-      <div className="h-32 bg-neutral-100 rounded mt-6" />
-      <div className="h-32 bg-neutral-100 rounded" />
+      <div className="h-8 w-2/3 bg-white/10 rounded" />
+      <div className="h-4 w-1/3 bg-white/10 rounded" />
+      <div className="h-32 bg-white/[0.04] rounded mt-6" />
+      <div className="h-32 bg-white/[0.04] rounded" />
     </div>
   );
 }

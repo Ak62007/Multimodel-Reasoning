@@ -36,7 +36,7 @@ from pipeline.audio.extract import extract_audio
 from pipeline.audio.technical import analyze_audio_layers
 from pipeline.audio.transcribe_assemblyai import get_utterances_data
 from pipeline.audio.transcribe_whisper import get_whisper_data
-from pipeline.features.linguistic import get_speaker_segments
+from pipeline.features.linguistic import detect_interviewee, get_speaker_segments
 from pipeline.features.transforms import compute_speaker_median_pitch, feature_engineering
 from pipeline.io.parquet import save_df_parquet_safe
 from pipeline.io.paths import PipelinePaths
@@ -111,6 +111,17 @@ class PipelineResult:
     job_id: str
     paths: PipelinePaths
     master_df_path: Path
+    speaker_label: str = "B"
+
+
+def _resolve_speaker(requested: str, utterances_df: pd.DataFrame) -> str:
+    """Resolve the interviewee label. An explicit label wins; ``"auto"`` (or
+    blank) triggers heuristic detection from the diarized utterances."""
+    if requested and requested.strip().lower() != "auto":
+        return requested
+    detected = detect_interviewee(utterances_df)
+    _log.info("Auto-detected interviewee speaker label: %s", detected)
+    return detected
 
 
 def _emit(progress_cb: ProgressCallback | None, stage: str, frac: float) -> None:
@@ -270,9 +281,16 @@ def run_pipeline(
     )
     save_df_parquet_safe(merged, paths.merged_parquet)
 
+    # Resolve which diarized speaker is the interviewee. When the caller passes
+    # "auto" (the default from the UI) we infer it from who holds the floor
+    # longest; an explicit label still wins. Everything downstream — pitch
+    # normalization, audio anomaly smoothing, the agent transcript filter — keys
+    # off this single resolved label.
+    speaker = _resolve_speaker(config.speaker_label, utterances_df)
+
     # 7. feature_engineering (training mode → raw transformed metrics)
     _stage_started("feature_engineering", 6)
-    speaker_segments = get_speaker_segments(utterances_df, speaker=config.speaker_label)
+    speaker_segments = get_speaker_segments(utterances_df, speaker=speaker)
     speaker_median_pitch = (
         compute_speaker_median_pitch(audio_path=str(audio_path), speaker_segments=speaker_segments)
         if speaker_segments
@@ -284,7 +302,7 @@ def run_pipeline(
         df=merged,
         norm_rz_df=None,
         speaker_median_pitch=speaker_median_pitch or 0.0,
-        speaker=config.speaker_label,
+        speaker=speaker,
         mode="training",
     )
     enriched = pd.concat([merged.reset_index(drop=True), trained.reset_index(drop=True)], axis=1)
@@ -292,7 +310,7 @@ def run_pipeline(
     # 8. anomaly_detection
     _stage_started("anomaly_detection", 7)
     enriched = smooth_and_rz_visual(enriched)
-    enriched = smooth_and_rz_audio(enriched, speaker=config.speaker_label)
+    enriched = smooth_and_rz_audio(enriched, speaker=speaker)
 
     visual_anom, visual_c_anom = _detect_per_feature(enriched, _RZ_VISUAL)
     audio_anom, audio_c_anom = _detect_per_feature(enriched, _RZ_AUDIO)
@@ -309,7 +327,7 @@ def run_pipeline(
         df=enriched,
         norm_rz_df=enriched,
         speaker_median_pitch=speaker_median_pitch or 0.0,
-        speaker=config.speaker_label,
+        speaker=speaker,
         mode="evaluation",
     )
     master_df = pd.concat(
@@ -321,7 +339,12 @@ def run_pipeline(
     _emit(progress_cb, "building_master_df", 1.0)
     _log.info("Pipeline complete. Master parquet at %s", paths.master_parquet)
 
-    return PipelineResult(job_id=config.job_id, paths=paths, master_df_path=paths.master_parquet)
+    return PipelineResult(
+        job_id=config.job_id,
+        paths=paths,
+        master_df_path=paths.master_parquet,
+        speaker_label=speaker,
+    )
 
 
 def _parse_argv(argv: list[str]) -> tuple[Path, PipelineConfig]:

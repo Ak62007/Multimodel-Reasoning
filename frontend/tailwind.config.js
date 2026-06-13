@@ -12,11 +12,14 @@ export default {
           "Roboto",
           "sans-serif",
         ],
+        display: ["Fraunces", "Georgia", "Cambria", "serif"],
       },
       maxWidth: {
         report: "768px",
       },
       colors: {
+        // Single soft, muted accent — warm champagne/sand (no neon).
+        sand: "#cbb491",
         // Semantic accents per spec §8.4
         tone: {
           strong: "#16a34a",   // green-600

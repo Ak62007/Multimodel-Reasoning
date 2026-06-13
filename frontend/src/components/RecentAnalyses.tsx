@@ -14,20 +14,20 @@ export function RecentAnalyses() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="underline hover:text-neutral-700"
+        className="transition hover:text-sand"
       >
         Recent analyses ({recent.length})
       </button>
       {open && (
-        <ul className="mt-2 mx-auto max-w-xs rounded border border-neutral-200 bg-white text-left">
+        <ul className="mt-2 mx-auto max-w-xs overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.02] text-left">
           {recent.map((r) => (
             <li
               key={r.id}
-              className="flex items-center justify-between px-3 py-2 hover:bg-neutral-50 border-b border-neutral-100 last:border-0"
+              className="flex items-center justify-between border-b border-white/[0.05] px-3 py-2 transition last:border-0 hover:bg-white/[0.03]"
             >
               <button
                 type="button"
-                className="truncate text-left text-neutral-800 hover:underline flex-1"
+                className="flex-1 truncate text-left text-neutral-300 hover:text-sand"
                 onClick={() => navigate(`/report/${r.id}`)}
               >
                 {r.filename}
@@ -35,7 +35,7 @@ export function RecentAnalyses() {
               <button
                 type="button"
                 aria-label={`Forget ${r.filename}`}
-                className="ml-2 text-neutral-400 hover:text-neutral-700"
+                className="ml-2 text-neutral-600 hover:text-neutral-300"
                 onClick={() => {
                   removeRecentJob(r.id);
                   setRecent(getRecentJobs());

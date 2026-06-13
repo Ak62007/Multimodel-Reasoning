@@ -39,7 +39,7 @@ class Settings(BaseSettings):
 
     # Pipeline
     assemblyai_api_key: str | None = None
-    speaker_label: str = "B"
+    speaker_label: str = "auto"
     face_landmarker_path: Path = Path("models/face_landmarker.task")
     whisper_model_size: str = "small"
     whisper_device: str = "cpu"

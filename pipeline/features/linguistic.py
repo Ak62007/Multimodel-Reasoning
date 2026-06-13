@@ -98,6 +98,40 @@ def assign_speakers(
     return target
 
 
+def detect_interviewee(utterances: pd.DataFrame, *, fallback: str = "B") -> str:
+    """Heuristically pick which diarized speaker is the interviewee.
+
+    In an interview the interviewer asks short questions and the interviewee
+    gives the long answers, so the interviewee holds the floor for far more
+    total time. We sum each speaker's speaking duration and take the max,
+    breaking ties on utterance count. Falls back to `fallback` when there is no
+    usable diarization (empty / single-speaker / missing `speaker` column).
+    """
+    if utterances is None or utterances.empty or "speaker" not in utterances.columns:
+        return fallback
+    df = utterances.dropna(subset=["speaker"])
+    if df.empty:
+        return fallback
+
+    durations = (df["end"].astype(float) - df["start"].astype(float)).clip(lower=0.0)
+    by_speaker = (
+        pd.DataFrame({"speaker": df["speaker"].astype(str), "dur": durations})
+        .groupby("speaker")["dur"]
+        .agg(total="sum", turns="count")
+        .sort_values(["total", "turns"], ascending=False)
+    )
+    if by_speaker.empty:
+        return fallback
+    winner = str(by_speaker.index[0])
+    _log.info(
+        "Interviewee auto-detection: %s",
+        ", ".join(
+            f"{spk}={row.total:.1f}s/{int(row.turns)}turns" for spk, row in by_speaker.iterrows()
+        ),
+    )
+    return winner
+
+
 def get_speaker_segments(utterances: pd.DataFrame, speaker: str) -> list[tuple[float, float]]:
     """Return `[(start_sec, end_sec), ...]` for one speaker. Utterances must be in seconds."""
     if utterances.empty:
@@ -108,6 +142,7 @@ def get_speaker_segments(utterances: pd.DataFrame, speaker: str) -> list[tuple[f
 
 __all__ = [
     "assign_speakers",
+    "detect_interviewee",
     "get_speaker_segments",
     "is_filler",
     "words_to_windows",

@@ -3,10 +3,10 @@ models in `pipeline.schemas` or the agent output models in `agents.schemas`)."""
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
 
 from agents.schemas import FinalReport, WindowAnalysis
 
@@ -28,6 +28,16 @@ class JobOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     duration_sec: float | None
+
+    @field_serializer("created_at", "updated_at")
+    def _serialize_utc(self, dt: datetime) -> str:
+        # Datetimes read back from SQLite are tz-naive but represent UTC. Without
+        # an explicit offset the browser parses them as *local* time, which on a
+        # UTC+5:30 client makes a just-started job's elapsed timer jump to ~330m.
+        # Always emit an offset so the client parses the correct instant.
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt.isoformat()
 
 
 class JobListOut(BaseModel):

@@ -21,7 +21,7 @@ class Job(SQLModel, table=True):
     filename: str
     upload_path: str  # absolute path to the stored upload
     is_test_input: bool = Field(default=False)  # True if the upload is a pre-computed parquet
-    speaker_label: str = Field(default="B")
+    speaker_label: str = Field(default="auto")  # "auto" → detected at run time
 
     status: str = Field(default="queued", index=True)  # JobStatus literal
     current_stage: str | None = Field(default=None)

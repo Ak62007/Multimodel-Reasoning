@@ -24,6 +24,7 @@ from backend.app.db import session_scope
 from backend.app.models import Job
 from backend.app.services.storage import job_paths
 from pipeline._logging import configure_logging
+from pipeline.features.linguistic import detect_interviewee
 from pipeline.io.parquet import load_df_parquet_safe, save_df_parquet_safe
 from pipeline.orchestrator import PipelineConfig, run_pipeline
 
@@ -192,7 +193,10 @@ def run_job_blocking(job_id: str, settings: Settings) -> None:
                 whisper_model_size=settings.whisper_model_size,
                 whisper_device=settings.whisper_device,
             )
-            run_pipeline(upload_path, pipeline_cfg, progress_cb=_progress_cb)
+            result = run_pipeline(upload_path, pipeline_cfg, progress_cb=_progress_cb)
+            # The pipeline resolves "auto" → the detected interviewee label; keep
+            # the agents (and the persisted record) in sync with that decision.
+            speaker_label = result.speaker_label
             master_df = load_df_parquet_safe(paths.master_parquet)
 
         # Load the transcript so the agents know *what was said* (utterances
@@ -205,6 +209,21 @@ def run_job_blocking(job_id: str, settings: Settings) -> None:
             transcript_df = load_df_parquet_safe(paths.whisper_parquet)
         else:
             _log.warning("No transcript parquet found — agents run without spoken context.")
+
+        # The real pipeline already resolved "auto"; the test-input path skips it,
+        # so detect here from the loaded transcript. Persist the resolved label so
+        # the record reflects which speaker was actually analyzed.
+        if speaker_label.strip().lower() == "auto":
+            speaker_label = (
+                detect_interviewee(transcript_df) if transcript_df is not None else "B"
+            )
+            _log.info("Resolved interviewee label (test-input path): %s", speaker_label)
+        with session_scope(settings) as session:
+            job = session.exec(select(Job).where(Job.id == job_id)).first()
+            if job is not None:
+                job.speaker_label = speaker_label
+                session.add(job)
+                session.commit()
 
         # Stage 10: agents
         with session_scope(settings) as session:

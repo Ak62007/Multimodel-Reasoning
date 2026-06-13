@@ -11,10 +11,10 @@ import type {
 export const jobsApi = {
   health: () => api.get<HealthResponse>("/api/health"),
 
-  createJob: (file: File, speakerLabel: string = "B") => {
+  createJob: (file: File) => {
+    // The interviewee speaker is auto-detected server-side; no label is sent.
     const form = new FormData();
     form.append("video", file);
-    form.append("speaker_label", speakerLabel);
     return api.post<Job>("/api/jobs", form);
   },
 
