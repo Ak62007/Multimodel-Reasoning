@@ -163,7 +163,14 @@ async def run_window_analyst_solo(
         system_prompt=WINDOW_ANALYST_SOLO_PROMPT, output_type=WindowAnalysis, settings=settings
     )
     user_msg = _format_solo_input(
-        window, visual_events, audio_events, vocab_events, visual_raw, audio_raw, vocab_raw, transcript
+        window,
+        visual_events,
+        audio_events,
+        vocab_events,
+        visual_raw,
+        audio_raw,
+        vocab_raw,
+        transcript,
     )
 
     async def _call() -> WindowAnalysis:

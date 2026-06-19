@@ -26,9 +26,7 @@ def test_picks_speaker_with_most_total_time() -> None:
 
 def test_total_time_beats_turn_count() -> None:
     # A takes many short turns but B holds the floor far longer overall.
-    df = _utterances(
-        [("A", t, t + 0.5) for t in range(0, 10)] + [("B", 10.0, 60.0)]
-    )
+    df = _utterances([("A", t, t + 0.5) for t in range(0, 10)] + [("B", 10.0, 60.0)])
     assert detect_interviewee(df) == "B"
 
 

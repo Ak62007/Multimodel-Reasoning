@@ -133,9 +133,7 @@ async def create_job(
 
     tier = tier.strip().lower()
     if tier not in ("free", "paid"):
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, detail="tier must be 'free' or 'paid'."
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="tier must be 'free' or 'paid'.")
 
     # Read into memory once to size-check; for very large uploads we stream
     # via SpooledTemporaryFile under the hood. 500 MB is the configured cap.

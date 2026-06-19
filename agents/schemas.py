@@ -188,9 +188,7 @@ class Signal(BaseModel):
         default="", description="What was being said at this moment, if known."
     )
     interpretation: str = Field(..., description="What it plausibly means — one or two sentences.")
-    significance: Significance = Field(
-        ..., description="How prominent / sustained this signal is."
-    )
+    significance: Significance = Field(..., description="How prominent / sustained this signal is.")
 
 
 class WindowAnalysis(BaseModel):
@@ -202,12 +200,8 @@ class WindowAnalysis(BaseModel):
 
     time_start: float
     time_end: float
-    phase: InterviewPhase = Field(
-        ..., description="Where in the interview this window sits."
-    )
-    position_pct: float = Field(
-        ..., description="Fraction (0-1) of the way through the interview."
-    )
+    phase: InterviewPhase = Field(..., description="Where in the interview this window sits.")
+    position_pct: float = Field(..., description="Fraction (0-1) of the way through the interview.")
     spoken_excerpt: str = Field(
         default="", description="What the candidate was saying during this window."
     )

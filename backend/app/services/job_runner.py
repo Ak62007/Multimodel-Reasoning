@@ -164,8 +164,12 @@ def _friendly_error(exc: Exception) -> str:
     if "assemblyai" in low and ("key" in low or "401" in low or "unauthor" in low):
         return "Your AssemblyAI API key was rejected or isn't set. Check the key and try again."
     if "no audio track" in low:
-        return "This video has no audio track, so it can't be analyzed. Upload a recording with sound."
-    if any(s in low for s in ("rate limit", "429", "quota", "resource_exhausted", "too many requests")):
+        return (
+            "This video has no audio track, so it can't be analyzed. Upload a recording with sound."
+        )
+    if any(
+        s in low for s in ("rate limit", "429", "quota", "resource_exhausted", "too many requests")
+    ):
         return RATE_LIMIT_MESSAGE
     if "permission" in low or "403" in low:
         return "The API rejected the request (permission denied). Check that your key has access."
@@ -286,9 +290,7 @@ def run_job_blocking(
         # so detect here from the loaded transcript. Persist the resolved label so
         # the record reflects which speaker was actually analyzed.
         if speaker_label.strip().lower() == "auto":
-            speaker_label = (
-                detect_interviewee(transcript_df) if transcript_df is not None else "B"
-            )
+            speaker_label = detect_interviewee(transcript_df) if transcript_df is not None else "B"
             _log.info("Resolved interviewee label (test-input path): %s", speaker_label)
         with session_scope(settings) as session:
             job = session.exec(select(Job).where(Job.id == job_id)).first()

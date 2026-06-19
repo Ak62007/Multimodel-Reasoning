@@ -102,7 +102,11 @@ async def _process_window(
 
             visual, audio, vocab = await asyncio.gather(
                 run_visual_observer(
-                    window.start, window.end, visual_events, raw_summary=visual_raw, settings=settings
+                    window.start,
+                    window.end,
+                    visual_events,
+                    raw_summary=visual_raw,
+                    settings=settings,
                 ),
                 run_audio_observer(
                     window.start, window.end, audio_events, raw_summary=audio_raw, settings=settings

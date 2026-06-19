@@ -62,7 +62,9 @@ async def validate_assemblyai_key(api_key: str) -> None:
                 _ASSEMBLYAI_URL, params={"limit": 1}, headers={"authorization": api_key}
             )
     except httpx.HTTPError as e:
-        _log.warning("Could not reach AssemblyAI to validate key; allowing job (%s)", type(e).__name__)
+        _log.warning(
+            "Could not reach AssemblyAI to validate key; allowing job (%s)", type(e).__name__
+        )
         return
     if resp.status_code == 200:
         return

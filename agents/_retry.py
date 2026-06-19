@@ -14,7 +14,14 @@ _log = logging.getLogger(__name__)
 
 # Rate-limit / quota errors deserve more patience than a generic failure —
 # free-tier API keys (e.g. Gemini's ~15 req/min) routinely 429 a busy run.
-_RATE_LIMIT_MARKERS = ("429", "rate limit", "rate_limit", "resource_exhausted", "too many requests", "quota")
+_RATE_LIMIT_MARKERS = (
+    "429",
+    "rate limit",
+    "rate_limit",
+    "resource_exhausted",
+    "too many requests",
+    "quota",
+)
 _RATE_LIMIT_ATTEMPTS = 6
 _RATE_LIMIT_MIN_DELAY = 8.0
 _MAX_DELAY = 30.0

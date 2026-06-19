@@ -101,7 +101,9 @@ def test_max_windows_cap_truncates_and_warns(
 
 
 def test_evenly_subsample_keeps_k() -> None:
-    items = [AnalysisWindow(start=float(i), end=float(i) + 1, rows=pd.DataFrame()) for i in range(20)]
+    items = [
+        AnalysisWindow(start=float(i), end=float(i) + 1, rows=pd.DataFrame()) for i in range(20)
+    ]
     out = windows_mod._evenly_subsample(items, 5)
     assert len(out) == 5
     assert windows_mod._evenly_subsample(items, 0) == []

@@ -29,7 +29,9 @@ def _format_input(analyses: list[WindowAnalysis]) -> str:
         )
         if a.spoken_excerpt:
             lines.append(f'Said: "{a.spoken_excerpt}"')
-        lines.append(f"Reads — visual: {a.visual_read} | audio: {a.audio_read} | verbal: {a.verbal_read}")
+        lines.append(
+            f"Reads — visual: {a.visual_read} | audio: {a.audio_read} | verbal: {a.verbal_read}"
+        )
         lines.append(f"Narrative: {a.narrative}")
         for s in a.signals:
             lines.append(
