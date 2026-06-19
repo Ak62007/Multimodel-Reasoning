@@ -168,10 +168,18 @@ function Waveform() {
       <div className="relative flex h-24 items-center gap-[3px]">
         {/* marked moments */}
         {marks.map((m) => (
-          <div key={m.label} aria-hidden className="absolute top-0 bottom-0 z-10" style={{ left: m.left }}>
-            <div className="absolute top-0 bottom-0 w-px -translate-x-1/2 bg-sand/25" />
-            <div className="absolute -top-1 left-0 h-2 w-2 -translate-x-1/2 animate-pulse-dot rounded-full bg-sand shadow-[0_0_12px_2px_rgba(203,180,145,0.4)]" />
-            <div className="absolute -bottom-7 left-0 -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-sand/70">
+          <div
+            key={m.label}
+            aria-hidden
+            className="absolute top-0 bottom-0 z-10 w-2 -translate-x-1/2"
+            style={{ left: m.left }}
+          >
+            {/* line, dot, and label all centered on the same column (left-1/2) */}
+            <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-sand/25" />
+            {/* centered with -ml (not translate) so the pulse scale-animation
+                doesn't override the centering transform and drift the dot */}
+            <div className="absolute -top-1 left-1/2 -ml-1 h-2 w-2 animate-pulse-dot rounded-full bg-sand shadow-[0_0_12px_2px_rgba(203,180,145,0.4)]" />
+            <div className="absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap font-mono text-[10px] text-sand/70">
               {m.label}
             </div>
           </div>

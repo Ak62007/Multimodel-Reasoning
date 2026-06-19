@@ -32,12 +32,6 @@ export default function ReportScreen() {
     enabled: jobQ.data?.status === "succeeded",
   });
 
-  const logsQ = useQuery({
-    queryKey: ["logs", id, 20],
-    queryFn: () => jobsApi.getLogs(id, 20),
-    enabled: jobQ.data?.status === "failed",
-  });
-
   useEffect(() => {
     if (jobQ.data?.filename) {
       document.title = `MMR — Report: ${jobQ.data.filename}`;
@@ -91,20 +85,13 @@ export default function ReportScreen() {
     return (
       <main className="mx-auto max-w-report px-4 pt-12 pb-12 space-y-6">
         <section
-          className="rounded-2xl border border-rose-400/20 bg-rose-500/[0.06] p-6 space-y-3"
+          className="rounded-2xl border border-rose-400/20 bg-rose-500/[0.06] p-6 space-y-2"
           data-testid="error-card"
         >
-          <h1 className="text-lg font-medium text-rose-200">Analysis failed</h1>
-          <p className="text-sm text-rose-200/80">{jobQ.data.error ?? "Unknown error"}</p>
-          <details className="text-xs text-rose-200/70">
-            <summary className="cursor-pointer">Show log</summary>
-            <pre
-              className="mt-2 max-h-64 overflow-auto rounded-lg bg-black/30 p-3 font-mono text-[11px] leading-relaxed text-neutral-400"
-              data-testid="error-log"
-            >
-              {logsQ.data?.lines.join("\n") ?? "(log unavailable)"}
-            </pre>
-          </details>
+          <h1 className="text-lg font-medium text-rose-200">Analysis couldn&apos;t finish</h1>
+          <p className="text-sm leading-relaxed text-rose-200/90" data-testid="error-message">
+            {jobQ.data.error ?? "Something went wrong. Please try again."}
+          </p>
         </section>
         <div className="flex gap-3">
           <button
@@ -162,6 +149,16 @@ export default function ReportScreen() {
           <span>Analyzed {parseServerDate(jobQ.data.updated_at).toLocaleString()}</span>
           {jobQ.data.duration_sec != null && (
             <span>Duration {formatDuration(jobQ.data.duration_sec)}</span>
+          )}
+          {jobQ.data.total_tokens != null && jobQ.data.total_tokens > 0 && (
+            <span data-testid="token-usage">
+              {jobQ.data.total_tokens.toLocaleString()} tokens
+            </span>
+          )}
+          {jobQ.data.tier && (
+            <span data-testid="tier-label">
+              {jobQ.data.tier === "free" ? "Lite (free tier)" : "Full analysis"}
+            </span>
           )}
         </div>
         <div className="flex gap-3 pt-2">

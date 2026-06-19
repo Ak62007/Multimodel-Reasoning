@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     # Agents
     agent_max_concurrency: int = 4
 
+    # Observability — when set, pydantic-ai runs are sent to Logfire (token
+    # usage, traces). Unset = silent no-op, so dev/CI are unaffected.
+    logfire_token: str | None = None
+
     # Test mode
     mmr_test_mode: bool = False
 

@@ -69,13 +69,23 @@ def _build_model(settings: AgentSettings) -> Model:
 
 
 @lru_cache(maxsize=16)
-def _cached_agent(settings_hash: tuple, system_prompt: str, output_type: type) -> Agent:
+def _cached_agent(settings_key: tuple, system_prompt: str, output_type: type) -> Agent:
     """LRU-cached agent factory.
 
     Cached on (provider, model, key) + prompt + output_type so we don't
     re-build a pydantic-ai Agent and underlying client for every window.
+
+    The model is built from the *cache key itself* — not a fresh env read — so
+    a per-request key (BYOK: a user supplying their own Gemini key) actually
+    reaches the provider instead of being silently overridden by the env.
     """
-    settings = AgentSettings()  # re-read from env so we honour overrides
+    llm_provider, llm_model, groq_key, gemini_key = settings_key
+    settings = AgentSettings(
+        llm_provider=llm_provider,
+        llm_model=llm_model,
+        groq_api_key=groq_key or None,
+        gemini_api_key=gemini_key or None,
+    )
     model = _build_model(settings)
     return Agent(model=model, output_type=output_type, system_prompt=system_prompt)  # type: ignore[arg-type]
 

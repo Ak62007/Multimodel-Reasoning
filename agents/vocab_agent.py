@@ -6,6 +6,7 @@ from agents import _stub
 from agents._provider import make_agent
 from agents._retry import with_retries
 from agents._settings import AgentSettings, get_agent_settings
+from agents._usage import record_run_usage
 from agents.prompts import VOCABULARY_PROMPT
 from agents.schemas import VocabObservation, VocabularyAnomalyEvent
 
@@ -45,6 +46,7 @@ async def run_vocab_observer(
 
     async def _call() -> VocabObservation:
         result = await agent.run(user_msg)
+        record_run_usage(result)
         return result.output  # type: ignore[return-value]
 
     return await with_retries(_call, label="vocab_observer")

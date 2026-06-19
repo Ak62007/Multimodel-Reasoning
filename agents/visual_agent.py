@@ -12,6 +12,7 @@ from agents import _stub
 from agents._provider import make_agent
 from agents._retry import with_retries
 from agents._settings import AgentSettings, get_agent_settings
+from agents._usage import record_run_usage
 from agents.prompts import VISUAL_PROMPT
 from agents.schemas import VisualAnomalyEvent, VisualObservation
 
@@ -53,6 +54,7 @@ async def run_visual_observer(
 
     async def _call() -> VisualObservation:
         result = await agent.run(user_msg)
+        record_run_usage(result)
         # pydantic-ai's generic typing of `output` is `str` by default;
         # we know the agent was bound to VisualObservation in make_agent.
         return result.output  # type: ignore[return-value]

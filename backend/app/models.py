@@ -22,6 +22,7 @@ class Job(SQLModel, table=True):
     upload_path: str  # absolute path to the stored upload
     is_test_input: bool = Field(default=False)  # True if the upload is a pre-computed parquet
     speaker_label: str = Field(default="auto")  # "auto" → detected at run time
+    tier: str = Field(default="paid")  # "paid" = full depth; "free" = lean single-call path
 
     status: str = Field(default="queued", index=True)  # JobStatus literal
     current_stage: str | None = Field(default=None)
@@ -32,6 +33,11 @@ class Job(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=_utc_now)
     started_at: datetime | None = Field(default=None)
     finished_at: datetime | None = Field(default=None)
+
+    # LLM token usage for the agent chain (counts only — never any key/content).
+    input_tokens: int | None = Field(default=None)
+    output_tokens: int | None = Field(default=None)
+    total_tokens: int | None = Field(default=None)
 
     @property
     def duration_sec(self) -> float | None:

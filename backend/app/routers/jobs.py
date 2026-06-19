@@ -27,6 +27,11 @@ from backend.app.deps import get_session_dep
 from backend.app.models import Job
 from backend.app.schemas import JobListOut, JobOut
 from backend.app.services.job_runner import run_job_blocking
+from backend.app.services.key_validation import (
+    KeyValidationError,
+    validate_assemblyai_key,
+    validate_gemini_key,
+)
 from backend.app.services.storage import remove_job_artefacts, save_upload
 
 _log = logging.getLogger(__name__)
@@ -44,6 +49,10 @@ def _to_out(job: Job) -> JobOut:
         created_at=job.created_at,
         updated_at=job.updated_at,
         duration_sec=job.duration_sec,
+        tier=job.tier,
+        input_tokens=job.input_tokens,
+        output_tokens=job.output_tokens,
+        total_tokens=job.total_tokens,
     )
 
 
@@ -73,6 +82,42 @@ def _validate_upload(filename: str, size: int, settings: Settings) -> bool:
     return is_test_input
 
 
+async def _preflight_validate_keys(
+    *,
+    settings: Settings,
+    is_test_input: bool,
+    gemini_api_key: str | None,
+    assemblyai_api_key: str | None,
+) -> None:
+    """Validate the effective keys that this job will use. Raises HTTP 400 with a
+    friendly message on a missing-but-required or rejected key."""
+    # Gemini powers the agent chain — only needed when agents make real calls.
+    if settings.llm_provider != "stub":
+        gemini_key = gemini_api_key or settings.gemini_api_key
+        if not gemini_key:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail="A Gemini API key is required to analyze the interview.",
+            )
+        try:
+            await validate_gemini_key(gemini_key)
+        except KeyValidationError as e:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e)) from None
+
+    # AssemblyAI powers transcription — skipped for the test-parquet path.
+    if not is_test_input:
+        aai_key = assemblyai_api_key or settings.assemblyai_api_key
+        if not aai_key:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail="An AssemblyAI API key is required to transcribe the audio.",
+            )
+        try:
+            await validate_assemblyai_key(aai_key)
+        except KeyValidationError as e:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e)) from None
+
+
 @router.post("", response_model=JobOut, status_code=status.HTTP_201_CREATED)
 async def create_job(
     background_tasks: BackgroundTasks,
@@ -80,13 +125,32 @@ async def create_job(
     session: Session = Depends(get_session_dep),
     video: UploadFile = FastAPIFile(...),
     speaker_label: str = Form("auto"),
+    tier: str = Form("paid"),
+    gemini_api_key: str | None = Form(None),
+    assemblyai_api_key: str | None = Form(None),
 ) -> JobOut:
     job_id = uuid.uuid4().hex[:12]
+
+    tier = tier.strip().lower()
+    if tier not in ("free", "paid"):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="tier must be 'free' or 'paid'."
+        )
 
     # Read into memory once to size-check; for very large uploads we stream
     # via SpooledTemporaryFile under the hood. 500 MB is the configured cap.
     contents = await video.read()
     is_test_input = _validate_upload(video.filename or "upload", len(contents), settings)
+
+    # Pre-flight: verify the keys we'll actually use *before* doing any work, so
+    # a bad key fails fast with a clear message instead of two minutes into the
+    # pipeline. Skipped when no real call will be made (stub agents / test parquet).
+    await _preflight_validate_keys(
+        settings=settings,
+        is_test_input=is_test_input,
+        gemini_api_key=gemini_api_key or None,
+        assemblyai_api_key=assemblyai_api_key or None,
+    )
 
     upload_path = save_upload(
         video.filename or f"{job_id}.bin",
@@ -101,6 +165,7 @@ async def create_job(
         upload_path=str(upload_path),
         is_test_input=is_test_input,
         speaker_label=speaker_label,
+        tier=tier,
         status="queued",
         progress=0.0,
     )
@@ -108,7 +173,15 @@ async def create_job(
     session.commit()
     session.refresh(job)
 
-    background_tasks.add_task(run_job_blocking, job_id, settings)
+    # Per-request keys (BYOK) are passed straight to the worker and never
+    # persisted — not on the Job row, not in logs.
+    background_tasks.add_task(
+        run_job_blocking,
+        job_id,
+        settings,
+        (gemini_api_key or None),
+        (assemblyai_api_key or None),
+    )
     _log.info("Queued job %s (filename=%s, test_input=%s)", job_id, job.filename, is_test_input)
     return _to_out(job)
 

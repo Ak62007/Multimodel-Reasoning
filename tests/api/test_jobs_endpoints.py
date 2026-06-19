@@ -12,6 +12,11 @@ import io
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from sqlmodel import select
+
+from backend.app.config import Settings
+from backend.app.db import session_scope
+from backend.app.models import Job
 
 
 def _upload(client: TestClient, parquet_path: Path) -> str:
@@ -143,6 +148,72 @@ def test_master_df_json_returns_records(client: TestClient, tiny_parquet_path: P
     assert len(records) == 60
     assert "Time" in records[0]
     assert "blinking_data" in records[0]
+
+
+def test_byok_keys_accepted_not_persisted_and_tokens_recorded(
+    client: TestClient, settings: Settings, tiny_parquet_path: Path
+) -> None:
+    """A per-request Gemini + AssemblyAI key is accepted, the job still runs
+    (stub ignores them), the keys are NEVER written to the Job row, and the
+    token-usage fields are populated (0 under the stub provider)."""
+    sentinel_gemini = "GEMINI-SECRET-DO-NOT-STORE"
+    sentinel_aai = "AAI-SECRET-DO-NOT-STORE"
+    with tiny_parquet_path.open("rb") as f:
+        r = client.post(
+            "/api/jobs",
+            files={"video": (tiny_parquet_path.name, f, "application/octet-stream")},
+            data={
+                "speaker_label": "B",
+                "gemini_api_key": sentinel_gemini,
+                "assemblyai_api_key": sentinel_aai,
+            },
+        )
+    assert r.status_code == 201, r.text
+    job_id = r.json()["id"]
+
+    body = client.get(f"/api/jobs/{job_id}").json()
+    assert body["status"] == "succeeded", body
+    # Token-usage plumbing ran (stub makes no real calls, so the totals are 0).
+    for field in ("input_tokens", "output_tokens", "total_tokens"):
+        assert body[field] == 0, body
+
+    # The keys must never land in the durable Job row.
+    with session_scope(settings) as session:
+        job = session.exec(select(Job).where(Job.id == job_id)).first()
+        assert job is not None
+        persisted = {str(v) for v in job.model_dump().values()}
+        assert sentinel_gemini not in persisted
+        assert sentinel_aai not in persisted
+
+
+def test_free_tier_runs_and_is_persisted(client: TestClient, tiny_parquet_path: Path) -> None:
+    """A free-tier job runs the lean single-call path end-to-end (stub), succeeds,
+    still produces window notes, and the tier is reported back."""
+    with tiny_parquet_path.open("rb") as f:
+        r = client.post(
+            "/api/jobs",
+            files={"video": (tiny_parquet_path.name, f, "application/octet-stream")},
+            data={"speaker_label": "B", "tier": "free"},
+        )
+    assert r.status_code == 201, r.text
+    job_id = r.json()["id"]
+
+    body = client.get(f"/api/jobs/{job_id}").json()
+    assert body["status"] == "succeeded", body
+    assert body["tier"] == "free"
+    segments = client.get(f"/api/jobs/{job_id}/segments").json()["items"]
+    assert segments, "free tier should still produce window notes"
+
+
+def test_invalid_tier_rejected(client: TestClient, tiny_parquet_path: Path) -> None:
+    with tiny_parquet_path.open("rb") as f:
+        r = client.post(
+            "/api/jobs",
+            files={"video": (tiny_parquet_path.name, f, "application/octet-stream")},
+            data={"speaker_label": "B", "tier": "premium"},
+        )
+    assert r.status_code == 400
+    assert "tier" in r.json()["detail"].lower()
 
 
 def test_logs_returns_tail(client: TestClient, tiny_parquet_path: Path) -> None:

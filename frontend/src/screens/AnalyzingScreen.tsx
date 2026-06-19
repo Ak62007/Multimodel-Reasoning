@@ -4,7 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { jobsApi } from "../api/jobs";
-import { STAGE_LABELS } from "../types/api";
+import { STAGE_BLURBS, STAGE_LABELS } from "../types/api";
 import { setActiveJobId } from "../lib/storage";
 import { formatElapsed, parseServerDate } from "../lib/time";
 import { StageChecklist } from "../components/StageChecklist";
@@ -65,6 +65,7 @@ export default function AnalyzingScreen() {
   if (!job) return null;
 
   const friendly = job.current_stage ? STAGE_LABELS[job.current_stage] ?? job.current_stage : "Preparing…";
+  const blurb = job.current_stage ? STAGE_BLURBS[job.current_stage] : null;
 
   return (
     <main className="mx-auto max-w-xl px-4 pt-16 pb-12">
@@ -100,6 +101,15 @@ export default function AnalyzingScreen() {
             Running for {formatElapsed(elapsed)}
           </div>
         </div>
+
+        {blurb && (
+          <p
+            className="rounded-xl border border-sand/15 bg-sand/[0.04] px-4 py-3 text-sm leading-relaxed text-stone-300"
+            data-testid="stage-blurb"
+          >
+            {blurb}
+          </p>
+        )}
 
         <StageChecklist currentStage={job.current_stage} />
 

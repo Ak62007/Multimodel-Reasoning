@@ -6,6 +6,7 @@ from agents import _stub
 from agents._provider import make_agent
 from agents._retry import with_retries
 from agents._settings import AgentSettings, get_agent_settings
+from agents._usage import record_run_usage
 from agents.prompts import AUDIO_PROMPT
 from agents.schemas import AudioAnomalyEvent, AudioObservation
 
@@ -43,6 +44,7 @@ async def run_audio_observer(
 
     async def _call() -> AudioObservation:
         result = await agent.run(user_msg)
+        record_run_usage(result)
         return result.output  # type: ignore[return-value]
 
     return await with_retries(_call, label="audio_observer")

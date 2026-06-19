@@ -175,3 +175,21 @@ async def test_build_report_with_transcript_populates_spoken_content(
         assert "ML expertise" in note.spoken_excerpt
         for s in note.signals:
             assert s.spoken_content
+
+
+@pytest.mark.asyncio
+async def test_build_report_raises_explicit_error_when_rate_limited(
+    master_df: pd.DataFrame, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If every window fails to rate limiting, build_report raises RateLimitedError
+    instead of silently returning a misleading empty report."""
+    from agents._retry import RateLimitedError
+
+    async def _boom(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("429 RESOURCE_EXHAUSTED: rate limit exceeded")
+
+    # Observers (stub) still succeed; the analyst call is what 429s.
+    monkeypatch.setattr("agents.orchestrator.run_window_analyst", _boom)
+
+    with pytest.raises(RateLimitedError):
+        await build_report(master_df, speaker_label="B")

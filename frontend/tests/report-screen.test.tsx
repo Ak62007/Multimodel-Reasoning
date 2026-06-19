@@ -24,6 +24,10 @@ type Job = {
   created_at: string;
   updated_at: string;
   duration_sec: number;
+  tier: "free" | "paid" | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_tokens: number | null;
 };
 
 const succeededJob: Job = {
@@ -36,6 +40,10 @@ const succeededJob: Job = {
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   duration_sec: 124.5,
+  tier: "paid",
+  input_tokens: 4000,
+  output_tokens: 2000,
+  total_tokens: 6000,
 };
 
 const failedJob: Job = { ...succeededJob, status: "failed", error: "ASR upload failed", progress: 0.2 };
@@ -123,6 +131,7 @@ describe("ReportScreen", () => {
     expect(screen.getByTestId("thread-card")).toBeInTheDocument();
     expect(screen.getByTestId("section-journal")).toBeInTheDocument();
     expect(screen.getByTestId("window-note")).toBeInTheDocument();
+    expect(screen.getByTestId("token-usage")).toHaveTextContent("6,000 tokens");
   });
 
   it("renders kind badges with the correct kind attribute", async () => {
@@ -160,14 +169,14 @@ describe("ReportScreen", () => {
     await waitFor(() => expect(screen.getByTestId("no-highlights")).toBeInTheDocument());
   });
 
-  it("renders the error mode for failed jobs with log tail", async () => {
+  it("shows a friendly error message (and no raw logs) for failed jobs", async () => {
     restore = setupMocks({ job: failedJob, segments: [] });
     renderWithProviders(<ReportScreen />);
 
     await waitFor(() => expect(screen.getByTestId("error-card")).toBeInTheDocument());
-    await waitFor(() =>
-      expect(screen.getByTestId("error-log").textContent).toContain("log line 1"),
-    );
+    expect(screen.getByTestId("error-message")).toHaveTextContent("ASR upload failed");
+    // Raw logs are no longer surfaced to users.
+    expect(screen.queryByTestId("error-log")).not.toBeInTheDocument();
   });
 
   it("Download as Markdown triggers a download", async () => {

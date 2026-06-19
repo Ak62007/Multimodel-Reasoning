@@ -6,15 +6,23 @@ import type {
   LogsResponse,
   ReportResponse,
   SegmentsResponse,
+  Tier,
 } from "../types/api";
 
 export const jobsApi = {
   health: () => api.get<HealthResponse>("/api/health"),
 
-  createJob: (file: File) => {
+  createJob: (
+    file: File,
+    opts?: { geminiApiKey?: string; assemblyaiApiKey?: string; tier?: Tier },
+  ) => {
     // The interviewee speaker is auto-detected server-side; no label is sent.
+    // API keys (BYOK) are sent per-request and never stored server-side.
     const form = new FormData();
     form.append("video", file);
+    if (opts?.tier) form.append("tier", opts.tier);
+    if (opts?.geminiApiKey) form.append("gemini_api_key", opts.geminiApiKey);
+    if (opts?.assemblyaiApiKey) form.append("assemblyai_api_key", opts.assemblyaiApiKey);
     return api.post<Job>("/api/jobs", form);
   },
 

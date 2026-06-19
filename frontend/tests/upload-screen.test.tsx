@@ -50,6 +50,10 @@ describe("UploadScreen", () => {
     const input = screen.getByTestId("file-input") as HTMLInputElement;
     fireEvent.change(input, { target: { files: [file] } });
 
+    // BYOK: both API keys are required before the button enables.
+    fireEvent.change(screen.getByTestId("gemini-key"), { target: { value: "test-gemini" } });
+    fireEvent.change(screen.getByTestId("assemblyai-key"), { target: { value: "test-aai" } });
+
     const btn = await screen.findByTestId("start-button");
     await userEvent.click(btn);
 

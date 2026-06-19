@@ -6,12 +6,38 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from sqlalchemy import Engine
+from sqlalchemy import Engine, inspect, text
 from sqlmodel import Session, SQLModel, create_engine
 
 from backend.app.config import Settings
 
 _engines: dict[Path, Engine] = {}
+
+# Columns added after the initial release. `create_all` only creates missing
+# tables, never alters existing ones, so we add them by hand for older DBs.
+# (SQLite type affinity is loose; INTEGER is fine for nullable counts.)
+_ADDITIVE_COLUMNS: dict[str, list[tuple[str, str]]] = {
+    "job": [
+        ("input_tokens", "INTEGER"),
+        ("output_tokens", "INTEGER"),
+        ("total_tokens", "INTEGER"),
+        ("tier", "TEXT"),
+    ],
+}
+
+
+def _apply_additive_migrations(engine: Engine) -> None:
+    """Add nullable columns introduced after release to an existing DB."""
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    for table, columns in _ADDITIVE_COLUMNS.items():
+        if table not in existing_tables:
+            continue  # create_all already made it with the current schema
+        present = {col["name"] for col in inspector.get_columns(table)}
+        with engine.begin() as conn:
+            for name, sql_type in columns:
+                if name not in present:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}"))
 
 
 def _build_engine(db_path: Path) -> Engine:
@@ -23,6 +49,7 @@ def _build_engine(db_path: Path) -> Engine:
         connect_args={"check_same_thread": False},
     )
     SQLModel.metadata.create_all(engine)
+    _apply_additive_migrations(engine)
     return engine
 
 

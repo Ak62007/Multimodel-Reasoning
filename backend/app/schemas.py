@@ -28,6 +28,10 @@ class JobOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     duration_sec: float | None
+    tier: str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_tokens: int | None = None
 
     @field_serializer("created_at", "updated_at")
     def _serialize_utc(self, dt: datetime) -> str:

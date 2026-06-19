@@ -1,6 +1,7 @@
 // API types — must match backend/app/schemas.py + agents/schemas.py.
 
 export type JobStatus = "queued" | "running" | "succeeded" | "failed";
+export type Tier = "free" | "paid";
 
 export interface Job {
   id: string;
@@ -12,6 +13,10 @@ export interface Job {
   created_at: string;
   updated_at: string;
   duration_sec: number | null;
+  tier: Tier | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_tokens: number | null;
 }
 
 export interface JobList {
@@ -115,6 +120,22 @@ export const STAGE_LABELS: Record<string, string> = {
   building_master_df: "Building the master profile…",
   running_agents: "Running behavioral agents…",
   generating_final_report: "Writing the final report…",
+};
+
+// A warm one-liner shown under the active stage, so the wait feels human.
+export const STAGE_BLURBS: Record<string, string> = {
+  extracting_frames: "Taking the video apart, frame by frame.",
+  extracting_audio: "Lifting the audio off the video.",
+  extracting_face_features: "Watching every blink, glance and micro-expression.",
+  extracting_audio_features: "Listening for shifts in pitch, pace and energy.",
+  transcribing: "Turning speech into words — and who said what.",
+  merging: "Lining face, voice and words up on one timeline.",
+  feature_engineering: "Turning raw signals into behavioral cues.",
+  anomaly_detection: "Spotting the moments that stand out.",
+  building_master_df: "Assembling the full picture.",
+  running_agents:
+    "The deep read — the agents study every moment together. This is the longest step, so grab a coffee. ☕",
+  generating_final_report: "Weaving everything into your report.",
 };
 
 // Ordered list of all 11 stages for the checklist UI.

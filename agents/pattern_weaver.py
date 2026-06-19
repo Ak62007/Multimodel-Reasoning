@@ -12,6 +12,7 @@ from agents import _stub
 from agents._provider import make_agent
 from agents._retry import with_retries
 from agents._settings import AgentSettings, get_agent_settings
+from agents._usage import record_run_usage
 from agents.prompts import PATTERN_WEAVER_PROMPT
 from agents.schemas import WeaverDraft, WindowAnalysis
 
@@ -56,6 +57,7 @@ async def run_pattern_weaver(
 
     async def _call() -> WeaverDraft:
         result = await agent.run(user_msg)
+        record_run_usage(result)
         return result.output  # type: ignore[return-value]
 
     return await with_retries(_call, label="pattern_weaver")

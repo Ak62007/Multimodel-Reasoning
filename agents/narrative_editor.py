@@ -11,6 +11,7 @@ from agents import _stub
 from agents._provider import make_agent
 from agents._retry import with_retries
 from agents._settings import AgentSettings, get_agent_settings
+from agents._usage import record_run_usage
 from agents.prompts import NARRATIVE_EDITOR_PROMPT
 from agents.schemas import FinalReport, WeaverDraft
 
@@ -42,6 +43,7 @@ async def run_narrative_editor(
 
     async def _call() -> FinalReport:
         result = await agent.run(user_msg)
+        record_run_usage(result)
         return result.output  # type: ignore[return-value]
 
     return await with_retries(_call, label="narrative_editor")
