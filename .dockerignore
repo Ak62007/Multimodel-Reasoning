@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Local data — these belong on the host, not in the image
+data/
+models/
+*.mp4
+*.mov
+*.avi
+*.wav
+*.parquet
+*.parquet.schema.json
+
+# legacy notebooks add hundreds of MB to the build context
+legacy_notebooks/
+
+# git + ci + editor noise
+.git/
+.github/
+.idea/
+.vscode/
+*.swp
+.DS_Store
+*.log
+
+# env
+.env
+.env.local

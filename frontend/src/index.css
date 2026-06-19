@@ -1,0 +1,148 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: theme(fontFamily.sans);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+@layer base {
+  body {
+    @apply min-h-screen;
+  }
+}
+
+/* ── Intro / hero motion ─────────────────────────────────────────────── */
+@keyframes mmr-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes mmr-scan {
+  0% {
+    left: 3%;
+  }
+  100% {
+    left: 97%;
+  }
+}
+@keyframes mmr-pulse-dot {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.35);
+  }
+}
+@keyframes mmr-bar {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+@keyframes mmr-drift {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(2%, -3%);
+  }
+}
+@keyframes mmr-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+@keyframes mmr-sweep {
+  0% {
+    left: -40%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+@keyframes mmr-grain {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  20% {
+    transform: translate(-4%, 3%);
+  }
+  40% {
+    transform: translate(3%, -5%);
+  }
+  60% {
+    transform: translate(-3%, 4%);
+  }
+  80% {
+    transform: translate(4%, -2%);
+  }
+}
+
+.animate-fade-up {
+  animation: mmr-fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-scan {
+  animation: mmr-scan 7s linear infinite alternate;
+}
+.animate-pulse-dot {
+  animation: mmr-pulse-dot 2.4s ease-in-out infinite;
+}
+.animate-bar {
+  transform-origin: center;
+  animation: mmr-bar 1.6s ease-in-out infinite;
+}
+.animate-drift {
+  animation: mmr-drift 16s ease-in-out infinite;
+}
+.animate-reveal {
+  animation: mmr-reveal 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-sweep {
+  animation: mmr-sweep 6s ease-in-out infinite alternate;
+}
+
+/* Fine film-grain texture — soft, tactile, no colour. */
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.035;
+  pointer-events: none;
+  animation: mmr-grain 8s steps(5) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-scan,
+  .animate-pulse-dot,
+  .animate-bar,
+  .animate-drift,
+  .animate-reveal,
+  .animate-sweep,
+  .grain::after {
+    animation: none !important;
+  }
+}

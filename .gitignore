@@ -1,12 +1,64 @@
-data/
-.venv/
-*.pyc
+# Python
 __pycache__/
+*.pyc
+*.pyo
+.python-version-local
+.venv/
+.eggs/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Notebooks
 .ipynb_checkpoints/
+
+# Models & media
 models/*.h5
 models/*.pkl
 models/*.task
+
+# Local data — never commit raw uploads, intermediate artefacts, or the SQLite DB
+data/
+!data/.gitkeep
 *.mp4
+*.mov
 *.avi
+*.webm
 *.wav
+
+# Parquet artefacts and sidecar schema files
+*.parquet
+*.parquet.schema.json
+# allow committed test fixtures
+!tests/fixtures/*.parquet
+!tests/fixtures/*.parquet.schema.json
+
+# Secrets
 .env
+.env.local
+.env.*.local
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+frontend/**/*.tsbuildinfo
+# Stray JS transpiles from `tsc -b` (build now uses --noEmit, but defend the tree)
+frontend/src/**/*.js
+frontend/tests/**/*.js
+frontend/*.config.js
+frontend/*.config.d.ts
+
+# Editor
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Logs
+*.log

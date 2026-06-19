@@ -1,10 +1,11 @@
 [project]
 name = "mmr"
 version = "0.1.0"
-description = "Add your description here"
+description = "Multimodal interview behavioral analysis"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    # Pipeline (existing — do not remove)
     "assemblyai>=0.48.1",
     "ipykernel>=7.1.0",
     "librosa>=0.11.0",
@@ -24,4 +25,95 @@ dependencies = [
     "seaborn>=0.13.2",
     "statsmodels>=0.14.6",
     "whisper-timestamped>=1.15.9",
+    # Backend
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "sqlmodel>=0.0.22",
+    "pydantic-settings>=2.6.0",
+    "python-multipart>=0.0.12",
+    "httpx>=0.27.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.7.0",
+    "mypy>=1.13.0",
+    "types-requests>=2.32.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [
+    "legacy_notebooks",
+    ".venv",
+    "data",
+    "frontend",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "RUF", # ruff-specific
+]
+ignore = [
+    "E501",   # line too long — handled by formatter; existing strings exceed
+    "B008",   # FastAPI uses Depends(...) at default
+    "RUF012", # mutable class attrs — Pydantic models trip this
+    "RUF001", # ambiguous unicode in docstrings — non-impactful, doc text only
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["B", "F401", "RUF002", "RUF003"]
+"tests/fixtures/*.py" = ["B", "F401", "RUF002", "RUF003"]
+"pipeline/features/transforms.py" = ["E741"]  # legacy single-letter vars
+# Prompt strings intentionally contain trailing whitespace for formatting;
+# these are revised wholesale in M4 — silence whitespace lints meanwhile.
+"agents/prompts.py" = ["W291", "W293"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+strict_optional = true
+warn_unused_ignores = false
+warn_redundant_casts = true
+no_implicit_optional = true
+check_untyped_defs = false
+exclude = [
+    "legacy_notebooks/",
+    "tests/",
+    "data/",
+    ".venv/",
+    "frontend/",
+]
+
+# Heavily-coupled legacy module — re-typed in M2 alongside the orchestrator
+# refactor that breaks it apart. Keeping it untouched in M1 per spec §15
+# ("prefer preserving the current behavior").
+[[tool.mypy.overrides]]
+module = "pipeline.features.transforms"
+ignore_errors = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-q"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["pipeline", "agents", "backend/app"]
+omit = ["**/__init__.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
