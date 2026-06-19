@@ -1,268 +1,139 @@
-# MMR — Multimodal Interview Behavioral Analysis
+# MMR — Multimodal Interview Analysis
 
-> Ingest an interview video → produce a per-window cross-modal behavioral report
-> + a final executive coaching report.
+Upload an interview video. MMR reads the candidate's **face, voice, and words at
+once** and produces a timestamped report of the moments worth re-watching — where
+those three channels line up, or quietly contradict each other.
 
-MMR is a multimodal pipeline that watches an interview recording on three
-channels at once — **what the candidate looks like**, **how they sound**, and
-**what they say** — and surfaces the moments where those three channels stop
-agreeing. The output is two reports: a list of cross-modal pattern segments
-(each a coachable moment with a timestamp, a quote, and a Strength / Concern /
-Notable label) and a four-section markdown coaching report.
+## What it does
 
-Under the hood it stacks:
+MMR watches a recording on three channels:
 
-- **Visual features** — face landmarks, blendshapes, and gaze (MediaPipe)
-- **Vocal features** — loudness, pitch, expressiveness (librosa)
-- **Verbal fluency** — speaking rate, fillers, pauses (AssemblyAI + whisper-timestamped)
-- **Anomaly detection** — robust z-score + RRCF with adaptive MAD thresholding
-- **Agent chain** — `pydantic-ai` with Groq's `llama-3.3-70b-versatile`
-  driving five agents (three internal observers + Pattern Detector + Judge).
-  A `stub` provider gives deterministic, free outputs for tests and offline dev.
+- **Face** — gaze, blinks, jaw, micro-expressions (MediaPipe)
+- **Voice** — loudness, pitch, expressiveness (librosa)
+- **Words** — speaking rate, fillers, pauses (AssemblyAI, with a local Whisper fallback)
 
-The intended user is an interview coach, recruiter, or behavioral analyst.
+It detects where those channels deviate from the candidate's baseline, then an
+agent chain turns that into a report:
 
----
+- a one-line headline, an overview, and a behavioral arc
+- **highlights** — timestamped moments to jump back to (what happened, when, why it matters)
+- **recurring threads** — patterns that show up across the interview
+- coaching notes, plus a window-by-window journal
 
-## Quickstart (Docker — recommended)
+The interviewee speaker is detected automatically.
+
+## Bring your own key (BYOK)
+
+MMR runs on the user's own API keys, entered in the browser for each analysis:
+
+- **Gemini** (the analysis) and **AssemblyAI** (transcription).
+- Keys are validated up front, used only for that one run, and **never stored or
+  logged**. See [`SECURITY.md`](SECURITY.md).
+- Two modes, chosen on upload:
+  - **Free key** — one combined call per moment, paced to fit free-tier rate limits.
+  - **Paid key** — the full multi-agent depth (a specialist per channel + analyst).
+
+For self-hosting, keys can instead live in `.env` and be used for every run.
+
+## Quickstart (Docker)
 
 ```bash
-# 1. Clone
 git clone <repo-url> mmr && cd mmr
+cp .env.example .env          # fill in keys, or leave blank for BYOK in the UI
 
-# 2. Configure secrets
-cp .env.example .env
-# Open .env and fill in:
-#   GROQ_API_KEY=...           (from console.groq.com)
-#   ASSEMBLYAI_API_KEY=...     (from assemblyai.com)
-# Defaults are fine for everything else.
-
-# 3. Download the MediaPipe face landmarker model (~3.6 MB).
-#    Without this, the pipeline will fail at the face-features stage.
+# Download the MediaPipe face model (~3.6 MB) — required for the face stage.
 mkdir -p models
 curl -L \
   https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task \
   -o models/face_landmarker.task
 
-# 4. Boot the whole stack
 docker compose up --build
-
-# Frontend: http://localhost:5173
-# Backend:  http://localhost:8000/api/health
+# Frontend: http://localhost:5173   Backend: http://localhost:8000/api/health
 ```
 
-Upload an `.mp4` / `.mov` / `.avi` / `.webm` in the browser, watch the stage
-checklist tick through, read the report.
-
-> Apple Silicon: backend image is pinned to `linux/amd64` because MediaPipe
-> doesn't ship Linux arm64 wheels. Builds via Rosetta (slower); runtime is
-> fine. See `DECISIONS.md` for details.
-
-## Quickstart (local dev — no Docker)
+## Quickstart (local dev)
 
 ```bash
-# Python
 uv sync --group dev
-cp .env.example .env       # then fill in keys
-mkdir -p models             # then download face_landmarker.task as above
-
-# Frontend
+cp .env.example .env
+mkdir -p models               # download face_landmarker.task as above
 cd frontend && bun install && cd ..
 
-# Run both concurrently (uvicorn --reload + vite dev)
-make dev
+make dev                      # uvicorn --reload + vite, both at once
 ```
 
-The frontend talks to the backend on `localhost:8000` via Vite's `/api`
-proxy. Open `http://localhost:5173/`.
+Open `http://localhost:5173`. The frontend reaches the backend via Vite's `/api` proxy.
 
----
-
-## Architecture
+## How it works
 
 ```
-┌────────────────────────┐
-│  React + Vite SPA      │  three screens: Upload / Analyzing / Report
-│  (frontend/)           │  TanStack Query polling, no data viz library
-└─────────────┬──────────┘
-              │ /api/* (nginx proxy in prod)
-              ▼
-┌────────────────────────┐
-│  FastAPI + SQLModel    │  Job CRUD, BackgroundTasks queue, log capture
-│  (backend/app/)        │  SQLite at data/mmr.db
-└──┬──────────────────┬──┘
-   │                  │
-   │ pipeline/         │ agents/
-   │  9 stages         │  build_report()
-   ▼                  ▼
-┌────────────┐  ┌────────────┐
-│ pipeline/  │  │ agents/    │  visual / audio / vocab observers
-│ frames →   │  │ orchestr.  │  → Pattern Detector → IntegratedBehavioralReport
-│ master_df  │  │ async fan- │  → Judge → FinalReport
-│ parquet    │  │ out 4×     │
-└────────────┘  └────────────┘
-   │                  ▲
-   │ MediaPipe        │ pydantic-ai → Groq (or stub)
-   │ librosa
-   │ AssemblyAI
-   │ whisper-timestamped (via librosa, no system ffmpeg required)
-   ▼
-master.parquet (per-window Pydantic-dict columns)
+video ──▶ pipeline (frames, audio, transcript, features, anomaly detection)
+            └─▶ master.parquet  (per-window signals at 0.5s cadence)
+                  └─▶ agent chain ──▶ report (highlights, threads, journal)
 ```
 
-### What's in each directory
+The agent chain (paid tier) per window: **visual / audio / vocab observers →
+Window Analyst**, then across the whole interview: **Pattern Weaver → Narrative
+Editor**. The free tier collapses the three observers into a single Window Analyst
+call to cut the request count ~4x.
 
-| Path                            | Role |
-| ------------------------------- | ---- |
-| `pipeline/`                     | Pure data pipeline. Eleven stages: extract → merge → smooth + RZ → RRCF → build master parquet. |
-| `pipeline/orchestrator.py`      | `run_pipeline(video_path, config, progress_cb)`. CLI entrypoint `python -m pipeline.orchestrator`. |
-| `pipeline/{video,audio}/`       | Frame extraction, audio extraction, librosa features, AssemblyAI + whisper-timestamped transcription. |
-| `pipeline/features/transforms.py` | Visual blendshape → intensity / magnitude transforms; `feature_engineering(...)` produces the Pydantic-dict per-row columns. |
-| `pipeline/anomaly/`             | RRCF + MAD threshold + continuous-range grouping + EWM smoothing + robust z-score. |
-| `pipeline/merge.py`             | Aligns the four streams (face, audio-tech, whisper words, utterances) on the 0.5 s grid. |
-| `pipeline/schemas.py`           | Pydantic per-frame containers (Blink, Gaze, ..., WPS). |
-| `pipeline/io/parquet.py`        | `save_df_parquet_safe` + `load_df_parquet_safe` (preserves object cols + sidecar-less fallback). |
-| `agents/`                       | Agent chain layer.  |
-| `agents/orchestrator.py`        | `build_report(master_df, …)`. Async, semaphore-bounded. |
-| `agents/windows.py`             | Group anomalous ranges into analysis windows (1 s gap merging). |
-| `agents/prompts.py`             | The five system prompts (rewritten in M4 for Strength/Concern/Notable framing). |
-| `agents/_stub.py`               | Deterministic stub provider used when `LLM_PROVIDER=stub`. |
-| `agents/_provider.py`           | pydantic-ai `Agent` factory bound to Groq. |
-| `backend/app/main.py`           | FastAPI app factory + CORS. |
-| `backend/app/routers/`          | `/api/health`, `/api/jobs`, `/api/jobs/{id}/…`. |
-| `backend/app/services/job_runner.py` | Pipeline + agent chain glue; sets `current_stage` and `progress` on the Job row as it goes. |
-| `backend/app/models.py`         | SQLModel `Job` table. |
-| `frontend/src/screens/`         | `UploadScreen`, `AnalyzingScreen`, `ReportScreen`. |
-| `frontend/src/components/`      | `StageChecklist`, `CrossModalSegment`, `PatternRow`, `ToneBadge`, etc. |
-| `frontend/src/types/api.ts`     | Hand-written TS types matching the backend Pydantic models. |
-| `tests/{unit,api,agents}/`      | pytest suite. |
-| `tests/fixtures/tiny_master_df.parquet` | 60-row synthetic master frame with two engineered anomalous windows; powers backend + agent integration tests. |
-| `frontend/tests/`               | Vitest screen tests with mocked `fetch`. |
-| `docker/`                       | `Dockerfile.backend`, `Dockerfile.frontend`, `nginx.conf`. |
-| `legacy_notebooks/`             | Original exploration; reference only. |
-| `tasks/REQUIREMENTS_FOR_CLAUDE_CODE.md` | The original build brief. |
-| `DECISIONS.md`                  | Per-milestone log of decisions taken. |
-| `BENCHMARK_LOG.md`              | Per-milestone token-usage telemetry. |
+LLMs run through `pydantic-ai`; the provider is derived from `LLM_MODEL`
+(`google-gla:gemini-2.5-flash` for Gemini, `groq:…` for Groq, or `stub` for
+deterministic, free test runs).
 
----
+### Layout
+
+| Path | Role |
+| --- | --- |
+| `pipeline/` | Video/audio/transcript extraction → features → anomaly detection → `master.parquet`. |
+| `agents/` | The agent chain: observers, Window Analyst, Pattern Weaver, Narrative Editor (`orchestrator.py`). |
+| `backend/app/` | FastAPI + SQLModel: job CRUD, BackgroundTasks runner, BYOK key validation. |
+| `frontend/src/` | React + Vite SPA: Intro / Upload / Analyzing / Report screens. |
+| `tests/` | pytest (unit, api, agents) + Vitest screen tests. |
+| `docker/` | Backend + frontend Dockerfiles and nginx config. |
+
+## Configuration
+
+Settings load from `.env` (`pydantic-settings`); see `.env.example`. Most relevant:
+
+| Var | Default | Purpose |
+| --- | --- | --- |
+| `LLM_MODEL` | `llama-3.3-70b-versatile` | Set to `google-gla:gemini-2.5-flash` for Gemini. Provider is inferred from the prefix. |
+| `LLM_PROVIDER` | `groq` | Use `stub` to skip all LLM calls (tests, offline dev). |
+| `GEMINI_API_KEY` | (unset) | Server-wide Gemini key. Leave blank for BYOK (users supply their own). |
+| `ASSEMBLYAI_API_KEY` | (unset) | Transcription key. Leave blank for BYOK. |
+| `LOGFIRE_TOKEN` | (unset) | Optional — sends pydantic-ai traces + token usage to Logfire. No-op when unset. |
+| `AGENT_MAX_CONCURRENCY` | `4` | Windows analyzed concurrently (paid tier). |
+| `MMR_TEST_MODE` | `0` | `1` allows uploading pre-computed master parquets (used by API tests). |
+| `CORS_ORIGINS` | localhost | Add your production origin before deploying. |
 
 ## Tests
 
 ```bash
-# Python — all 138 tests, takes ~3 s
-uv run pytest -q
-
-# Coverage report
-uv run pytest --cov=pipeline --cov=agents --cov=backend/app --cov-report=term
-
-# Lint + type
-uv run ruff check .
-uv run ruff format --check .
-uv run mypy backend/app pipeline agents
-
-# Frontend
-cd frontend && bun run test --run && bun run typecheck && bun run build
+LLM_PROVIDER=stub MMR_TEST_MODE=1 uv run pytest -q   # ~160 tests, a few seconds
+uv run ruff check . && uv run ruff format --check . && uv run mypy backend/app pipeline agents
+cd frontend && bun run typecheck && bun run lint && bunx vitest run && bun run build
 ```
 
-All three CI jobs run on every push (`.github/workflows/ci.yml`). Docker
-images build on pushes to `main` (`.github/workflows/docker.yml`).
+CI runs all of the above on every push (`.github/workflows/ci.yml`).
 
-### Manual smoke tests
+## Notes
 
-| Script | What it does |
-| --- | --- |
-| `make smoke-groq` | Runs the agent chain against real Groq on the tiny committed fixture (~9 LLM calls; costs ~$0.01). |
-| `python -m pipeline.orchestrator <video.mp4>` | Runs the full pipeline on a real video and writes `data/processed/{job-id}/master.parquet`. |
-
----
-
-## Configuration
-
-All settings load from `.env` via `pydantic-settings`. See `.env.example`
-for the full list; the most important:
-
-| Var | Default | Purpose |
-| --- | --- | --- |
-| `LLM_PROVIDER` | `groq` | Set to `stub` to skip all LLM calls (tests, offline dev). |
-| `LLM_MODEL` | `llama-3.3-70b-versatile` | Any Groq-served model. |
-| `GROQ_API_KEY` | (unset) | Required when `LLM_PROVIDER=groq`. |
-| `ASSEMBLYAI_API_KEY` | (unset) | Required for transcription. |
-| `AGENT_MAX_CONCURRENCY` | `4` | How many analysis windows process concurrently. |
-| `FACE_LANDMARKER_PATH` | `models/face_landmarker.task` | MediaPipe model weights. |
-| `WHISPER_MODEL_SIZE` | `small` | Trades speed for accuracy. `tiny`, `small`, `medium`, `large`. |
-| `WHISPER_DEVICE` | `cpu` | Use `cuda` if you have a GPU and a CUDA-built torch. |
-| `MMR_TEST_MODE` | `0` | Set to `1` to allow uploading pre-computed master parquets (used by API tests). |
-| `MAX_UPLOAD_MB` | `500` | Upload size cap. |
-| `CORS_ORIGINS` | `["http://localhost:5173", …]` | Add your production origin here. |
-
----
-
-## Known limitations
-
-- **Backend image is large (~3-5 GB squashed).** Driven mostly by `torch`
-  (CPU build) inside `whisper-timestamped`, plus MediaPipe. Mitigations
-  (CPU-only torch constraint, drop whisper) are documented in
-  `DECISIONS.md` under M7 and deferred.
-- **Apple Silicon dev needs Rosetta for `docker compose build`.**
-  MediaPipe 0.10.31 doesn't ship Linux arm64 wheels. Backend Dockerfile
-  pins `--platform=linux/amd64`.
-- **Whisper "small" on CPU is the slowest pipeline stage** (~30-50% of
-  total wall time on a 10-minute interview). Use `WHISPER_MODEL_SIZE=tiny`
-  for faster iteration or move to GPU.
-- **Single-process BackgroundTasks executor.** Spec §4 allows this for v1;
-  swap to Celery / RQ / Arq via the same `run_job_blocking(job_id, settings)`
-  entrypoint when you need horizontal scaling.
-- **No authentication.** This is a single-user behavioral analysis tool;
-  multi-user deployments should add an auth layer in front (oauth-proxy,
-  Cloudflare Access, …).
-- **The pipeline emits a "baseline" FinalReport even when no patterns are
-  found.** The API contract guarantees the report endpoint always returns
-  something; the frontend renders a "no notable patterns detected"
-  placeholder for the Cross-Modal Patterns section.
-
----
-
-## Troubleshooting
-
-**`uv sync` fails on `mediapipe`** — MediaPipe pins Python and platform
-narrowly. If you're on Linux arm64 (Raspberry Pi, …) it has no wheel; the
-docker image is the recommended path. On macOS arm64 / Linux amd64 / macOS
-x86 it works.
-
-**`whisper.load_audio` complains about `ffmpeg`** — fixed in M2; we load
-via librosa now. If you still see it, you're on a stale checkout — rebase
-on `m2-done` or later.
-
-**Backend container takes minutes to boot on Apple Silicon** — Rosetta
-emulation for the amd64 image. The runtime itself is fine; subsequent
-restarts are fast because Docker caches the unpacked image.
-
-**`/api/jobs` returns 422 on parquet uploads** — production mode doesn't
-accept `.parquet`; only enabled when `MMR_TEST_MODE=1`. Upload an actual
-video file.
-
-**No face detected in any frame** — `pipeline/video/face_features.py` logs
-per-frame at DEBUG level. Make sure the candidate's face is visible at 1
-frame per second (default `FPS=1` sample rate) and that
-`FACE_LANDMARKER_PATH` points at the real `face_landmarker.task` file (not
-a zero-byte placeholder).
-
-**GitHub Actions "frozen lockfile" error on `uv sync`** — regenerate
-`uv.lock` locally with `uv lock` and commit the result.
-
----
+- **HTTPS is required in production** — API keys travel in the request body. See
+  [`SECURITY.md`](SECURITY.md) and [`DEPLOYMENT.md`](DEPLOYMENT.md).
+- **Free-tier keys have a daily request cap.** A full interview uses many calls;
+  the free mode helps, but a long video can still exhaust a free key for the day.
+  MMR fails fast with a clear message when that happens.
+- **Apple Silicon:** the backend image is pinned to `linux/amd64` (MediaPipe has no
+  Linux arm64 wheels), so `docker build` runs via Rosetta. Runtime is fine.
+- **No built-in auth.** Put an access layer in front for a shared deployment.
 
 ## Documentation
 
-- [`DECISIONS.md`](DECISIONS.md) — per-milestone log of decisions taken
-  during the build. Read this before changing something non-obvious.
-- [`DEPLOYMENT.md`](DEPLOYMENT.md) — Fly.io / Railway / generic VPS
-  deployment guide.
-- [`BENCHMARK_LOG.md`](BENCHMARK_LOG.md) — token-usage telemetry per
-  milestone. Co-maintained by the build agent + the user.
-- [`tasks/REQUIREMENTS_FOR_CLAUDE_CODE.md`](tasks/REQUIREMENTS_FOR_CLAUDE_CODE.md) — the original
-  build brief.
+- [`SECURITY.md`](SECURITY.md) — how API keys are handled (BYOK).
+- [`DEPLOYMENT.md`](DEPLOYMENT.md) — VPS / Fly.io deployment.
+- [`DECISIONS.md`](DECISIONS.md) — design decisions taken during the build.
 
 ## License
 
-See `LICENSE`.
+See [`LICENSE`](LICENSE).
